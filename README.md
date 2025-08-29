@@ -1,6 +1,6 @@
 # tphotos
 
-使用 Flutter 的**非官方** TerraPhotos 客户端，实现登录与照片管理。
+使用 Flutter 的**非官方** TerraPhotos 客户端，实现照片管理。
 
 > 平台支持：Android、Windows、iOS（无签名构建）、macOS（未签名）。
 

@@ -6,6 +6,7 @@ import '../api/tos_api.dart';
 import '../models/timeline_models.dart';
 import '../models/photo_list_models.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -130,6 +131,10 @@ class _PhotosPageState extends State<PhotosPage> {
   List<dynamic> _photos = [];
   bool _loading = true;
   String? _error;
+  // 当前空间（1: 个人空间, 2: 公共空间）
+  int _space = 1;
+  // 启动默认空间（仅用于设置页显示与保存，不影响当前 _space）
+  int _defaultSpace = 1;
   // 每日照片缓存（key: 当日的 timestamp，值：该日的照片列表数据）
   final Map<int, PhotoListData> _datePhotoCache = {};
   final Set<int> _loadingDates = {};
@@ -179,7 +184,55 @@ class _PhotosPageState extends State<PhotosPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _initSpace();
+  }
+
+  Future<void> _initSpace() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final v = prefs.getInt('space') ?? 2;
+      _space = (v == 1) ? 1 : 2;
+      _defaultSpace = _space;
+    } catch (_) {
+      _space = 1;
+      _defaultSpace = 1;
+    }
+    if (!mounted) return;
+    setState(() {});
+    await _load();
+  }
+
+  Future<void> _onSpaceChanged(int v) async {
+    if (v != 1 && v != 2) return;
+    if (v == _space) return;
+    setState(() {
+      _space = v;
+      // 切换空间时清空缓存与进行中的状态
+      _datePhotoCache.clear();
+      _dateStarted.clear();
+      _dateItems.clear();
+      _dateFutures.clear();
+      // 重置缩略图 notifiers，避免跨空间污染 UI
+      for (final n in _thumbNotifiers.values) {
+        n.dispose();
+      }
+      _thumbNotifiers.clear();
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('space', _space);
+    } catch (_) {}
+    await _load();
+  }
+
+  // 仅保存默认空间（不影响当前 _space）
+  Future<void> _saveDefaultSpace(int v) async {
+    if (v != 1 && v != 2) return;
+    setState(() => _defaultSpace = v);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('space', v);
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -189,7 +242,7 @@ class _PhotosPageState extends State<PhotosPage> {
     });
     try {
       final res = await widget.api.photos.timeline(
-        space: 2,
+        space: _space,
         fileType: 0,
         timelineType: 2,
         order: 'desc',
@@ -294,7 +347,7 @@ class _PhotosPageState extends State<PhotosPage> {
           1000;
       final end = start + 86400 - 1;
       final data = await widget.api.photos.photoListAll(
-        space: 2,
+        space: _space,
         listType: 1,
         fileType: 0,
         startTime: start,
@@ -316,6 +369,23 @@ class _PhotosPageState extends State<PhotosPage> {
       appBar: AppBar(
         title: Text(_titleForSection(_section)),
         actions: [
+          PopupMenuButton<int>(
+            tooltip: '切换空间',
+            icon: Icon(_space == 1 ? Icons.person : Icons.people),
+            onSelected: _onSpaceChanged,
+            itemBuilder: (context) => [
+              CheckedPopupMenuItem<int>(
+                value: 1,
+                checked: _space == 1,
+                child: const Text('个人空间'),
+              ),
+              CheckedPopupMenuItem<int>(
+                value: 2,
+                checked: _space == 2,
+                child: const Text('公共空间'),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: _themeTooltip(widget.themeMode),
             onPressed: widget.onToggleTheme,
@@ -436,6 +506,9 @@ class _PhotosPageState extends State<PhotosPage> {
                 ],
               ),
       );
+    }
+    if (_section == HomeSection.settings) {
+      return this._buildSettings();
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
@@ -608,6 +681,51 @@ class _PhotosPageState extends State<PhotosPage> {
       case ThemeMode.system:
         return '跟随系统（点按切换）';
     }
+  }
+}
+
+// ---------------- 设置页（仅“默认空间”） ----------------
+extension on _PhotosPageState {
+  Future<void> _onDefaultSpaceChanged(int v) async {
+    return this._saveDefaultSpace(v);
+  }
+
+  Widget _buildSettings() {
+    return ListView(
+      children: [
+        const ListTile(
+          title: Text('默认空间'),
+          subtitle: Text('用于决定启动时加载的空间，也会立即应用到当前页面'),
+        ),
+        RadioListTile<int>(
+          value: 1,
+          groupValue: _defaultSpace,
+          onChanged: (v) {
+            if (v != null) _onDefaultSpaceChanged(v);
+          },
+          title: const Text('个人空间'),
+          secondary: const Icon(Icons.person),
+        ),
+        RadioListTile<int>(
+          value: 2,
+          groupValue: _defaultSpace,
+          onChanged: (v) {
+            if (v != null) _onDefaultSpaceChanged(v);
+          },
+          title: const Text('公共空间'),
+          secondary: const Icon(Icons.people),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            '提示：该设置仅影响下次启动时的默认空间，不会改变当前已加载的空间。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
   }
 }
 
