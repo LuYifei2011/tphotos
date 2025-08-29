@@ -29,7 +29,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _loadSaved() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _serverCtrl.text = prefs.getString('server') ?? 'http://192.168.2.2:8181';
+      _serverCtrl.text = prefs.getString('server') ?? 'http://tnas.local:8181';
       _userCtrl.text = prefs.getString('username') ?? '';
       _passCtrl.text = prefs.getString('password') ?? '';
       _remember = prefs.getBool('remember') ?? (_passCtrl.text.isNotEmpty);

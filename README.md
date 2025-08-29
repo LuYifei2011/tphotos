@@ -1,6 +1,8 @@
 # tphotos
 
-轻量的 Flutter 客户端，面向 Terra Photos 后端，实现登录与照片管理。
+使用 Flutter 的**非官方** TerraPhotos 客户端，实现登录与照片管理。
+
+> 平台支持：Android、Windows、iOS（无签名构建）、macOS（未签名）。
 
 此 README 侧重于开发/调试信息；运行说明、架构要点与常见陷阱请参见仓库内 `lib/` 与 `.github/copilot-instructions.md`。
 
@@ -15,6 +17,12 @@ flutter pub get
 ```bash
 flutter run
 ```
+
+如需桌面/移动平台指定：
+- Windows：`flutter run -d windows`
+- Android：`flutter run -d android`
+- iOS（需 macOS 且已配置 Xcode/iOS 模拟器）：`flutter run -d ios`
+- macOS：`flutter run -d macos`
 
 3. 本地后端地址配置：
 - 推荐在应用启动时通过登录页输入服务器地址（`lib/pages/login_page.dart` 的默认值为 `http://192.168.2.2:8181`）。
