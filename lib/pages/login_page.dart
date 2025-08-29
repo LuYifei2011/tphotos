@@ -3,7 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/tos_api.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final ThemeMode? themeMode;
+  final VoidCallback? onToggleTheme;
+  const LoginPage({super.key, this.themeMode, this.onToggleTheme});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -77,7 +79,17 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('登录')),
+      appBar: AppBar(
+        title: const Text('登录'),
+        actions: [
+          if (widget.onToggleTheme != null)
+            IconButton(
+              tooltip: _themeTooltip(widget.themeMode ?? ThemeMode.system),
+              onPressed: widget.onToggleTheme,
+              icon: Icon(_themeIcon(widget.themeMode ?? ThemeMode.system)),
+            ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
@@ -144,5 +156,27 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+}
+
+IconData _themeIcon(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return Icons.light_mode;
+    case ThemeMode.dark:
+      return Icons.dark_mode;
+    case ThemeMode.system:
+      return Icons.brightness_auto;
+  }
+}
+
+String _themeTooltip(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return '浅色模式（点按切换）';
+    case ThemeMode.dark:
+      return '深色模式（点按切换）';
+    case ThemeMode.system:
+      return '跟随系统（点按切换）';
   }
 }

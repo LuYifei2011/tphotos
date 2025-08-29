@@ -13,6 +13,7 @@ dependencies:
   encrypt: ^5.0.1
   pointycastle: ^3.9.1
   shared_preferences: ^2.3.2
+  visibility_detector: ^0.3.3
 
 dev_dependencies:
   flutter_test:
