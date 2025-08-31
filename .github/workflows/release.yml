@@ -39,19 +39,26 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK (release)
-        run: flutter build apk --release
-
-      - name: Build AppBundle (release)
-        run: flutter build appbundle --release
-
+      - name: Build APK (release, split per ABI) and AAB
+        run: |
+          flutter build apk --release --split-per-abi
+          flutter build appbundle --release
+      - name: Rename Android artifacts
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p release
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release/tphotos-${VERSION}-android-arm32v7.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release/tphotos-${VERSION}-android-arm64v8.apk"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk "release/tphotos-${VERSION}-android-x64.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "release/tphotos-${VERSION}-android-google-play.aab"
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android
           path: |
-            build/app/outputs/flutter-apk/*.apk
-            build/app/outputs/bundle/release/*.aab
+            release/*.apk
+            release/*.aab
 
   ios:
     name: iOS (no codesign)
@@ -111,18 +118,26 @@ jobs:
         run: flutter build windows --release
         shell: pwsh
 
-      - name: Archive Windows build
+      - name: Archive and rename Windows build
         run: |
+          $ErrorActionPreference = "Stop"
           $outDir = "build/windows/x64/runner/Release"
-          if (-not (Test-Path $outDir)) { Get-ChildItem -Recurse build/windows | Write-Output }
-          Compress-Archive -Path "$outDir/*" -DestinationPath "build/windows-release.zip"
+          if (-not (Test-Path $outDir)) { Get-ChildItem -Recurse build/windows | Write-Output; throw "Output dir not found" }
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          $zipName = "tphotos-$version-windows-x86-64.zip"
+          Compress-Archive -Path "$outDir/*" -DestinationPath $zipName
+          $exe = Get-ChildItem -Path $outDir -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { Get-ChildItem $outDir | Write-Output; throw "No exe found" }
+          Copy-Item $exe.FullName "tphotos-$version-windows-x86-64.exe"
         shell: pwsh
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: build/windows-release.zip
+          path: |
+            tphotos-*-windows-x86-64.zip
+            tphotos-*-windows-x86-64.exe
 
   macos:
     name: macOS
@@ -146,34 +161,70 @@ jobs:
       - name: Build macOS (release)
         run: flutter build macos --release
 
-      - name: Archive macOS app
+      - name: Create DMG
         run: |
+          set -e
           OUT_DIR="build/macos/Build/Products/Release"
           APP_PATH=$(ls -d ${OUT_DIR}/*.app | head -n 1)
           if [ -z "$APP_PATH" ]; then echo "No .app found in ${OUT_DIR}" && ls -la ${OUT_DIR} && exit 1; fi
-          cd "$(dirname "$APP_PATH")"
-          zip -yr ../../../../macos-release.zip "$(basename "$APP_PATH")"
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG_NAME="tphotos-${VERSION}.dmg"
+          hdiutil create -volname "tphotos" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
+          mkdir -p build
+          mv "$DMG_NAME" build/
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: build/macos-release.zip
+          path: build/tphotos-*.dmg
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - name: Install Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build Linux (release)
+        run: flutter build linux --release
+      - name: Pack Linux tar.gz
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUNDLE="build/linux/x64/release/bundle"
+          if [ ! -d "$BUNDLE" ]; then echo "Bundle not found"; ls -R build/linux; exit 1; fi
+          tar czf "tphotos-${VERSION}-linux-x86-64.tar.gz" -C "$BUNDLE" .
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: tphotos-*-linux-x86-64.tar.gz
 
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [android, ios, macos, windows]
+    needs: [android, ios, macos, windows, linux]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
-
       - name: List downloaded files
         run: ls -R dist
-
       - name: Create Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -184,6 +235,8 @@ jobs:
           files: |
             dist/android/*.apk
             dist/android/*.aab
-            dist/ios/ios-release.zip
-            dist/macos/macos-release.zip
-            dist/windows/windows-release.zip
+            dist/ios/*.zip
+            dist/macos/*.dmg
+            dist/windows/*.zip
+            dist/windows/*.exe
+            dist/linux/*.tar.gz
