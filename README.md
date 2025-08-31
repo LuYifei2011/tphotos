@@ -74,4 +74,4 @@ flutter run
 
 ---
 
-若你希望我把 README 再精简为英文版、添加截图或补充 CI/测试步骤，请告诉我需要的方向，我会继续更新。
+<a href="https://www.flaticon.com/free-icons/gallery" title="gallery icons">Gallery icons created by Hilmy Abiyyu A. - Flaticon</a>
