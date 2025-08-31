@@ -508,7 +508,7 @@ class _PhotosPageState extends State<PhotosPage> {
       );
     }
     if (_section == HomeSection.settings) {
-      return this._buildSettings();
+      return _buildSettings();
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
@@ -687,7 +687,7 @@ class _PhotosPageState extends State<PhotosPage> {
 // ---------------- 设置页（仅“默认空间”） ----------------
 extension on _PhotosPageState {
   Future<void> _onDefaultSpaceChanged(int v) async {
-    return this._saveDefaultSpace(v);
+    return _saveDefaultSpace(v);
   }
 
   Widget _buildSettings() {

@@ -122,7 +122,7 @@ class _MainAppState extends State<MainApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TOS Photos',
+      title: 'TPhotos',
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
