@@ -218,14 +218,14 @@ jobs:
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
-          BUNDLE="build/linux/x86_64/release/bundle"
+          BUNDLE="build/linux/x64/release/bundle"
           if [ ! -d "$BUNDLE" ]; then echo "Bundle not found"; ls -R build/linux; exit 1; fi
           tar czf "TPhotos-${VERSION}-linux-x86_64.tar.gz" -C "$BUNDLE" .
       - name: Create AppImage
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
-          BUNDLE="build/linux/x86_64/release/bundle"
+          BUNDLE="build/linux/x64/release/bundle"
           APPIMAGE_NAME="TPhotos-${VERSION}-linux-x86_64.AppImage"
           # Install appimagetool
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
