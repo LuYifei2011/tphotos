@@ -191,7 +191,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: build/tphotos-*.dmg
+          path: build/TPhotos-*.dmg
 
   linux:
     name: Linux (x86_64)
