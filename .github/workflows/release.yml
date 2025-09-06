@@ -211,7 +211,7 @@ jobs:
         with:
           channel: 'stable'
           cache: true
-          flutter-version: '3.35.3'  # 指定具体版本以支持ARM64
+          flutter-version: '3.32.8'  # 指定具体版本以支持ARM64
       - name: Install Linux desktop deps
         run: |
           sudo apt-get update
