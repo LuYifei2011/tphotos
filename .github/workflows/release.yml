@@ -235,7 +235,8 @@ jobs:
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp -r "$BUNDLE"/* AppDir/usr/bin/
           # Add desktop file and icon (assume icon exists in project)
-          echo "[Desktop Entry]\nName=TPhotos\nExec=TPhotos\nIcon=tphotos\nType=Application\nCategories=Utility;" > AppDir/usr/share/applications/tphotos.desktop
+          echo "[Desktop Entry]\nName=TPhotos\nExec=TPhotos\nIcon=tphotos\nType=Application\nCategories=Utility;" > AppDir/tphotos.desktop
+          cp AppDir/tphotos.desktop AppDir/usr/share/applications/tphotos.desktop
           cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/tphotos.png  # Adjust path if needed
           # Create AppImage
           $TOOL AppDir "$APPIMAGE_NAME"
