@@ -1,11 +1,35 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api/tos_api.dart';
 import 'pages/login_page.dart';
 import 'pages/photos_page.dart';
+import 'package:fvp/fvp.dart' as fvp;
 
 void main() {
-  runApp(const MainApp());
+  runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    // 使用 fvp 替换/增强 video_player，在桌面优先启用
+    try {
+      fvp.registerWith(options: {
+        'platforms': ['windows', 'macos', 'linux'],
+        // 可按需添加解码器或低延迟设置
+        // 'video.decoders': ['D3D11', 'NVDEC', 'FFmpeg'],
+      });
+    } catch (e) {
+      debugPrint('fvp register failed: $e');
+    }
+    FlutterError.onError = (details) {
+      debugPrint('FlutterError: ${details.exceptionAsString()}');
+      if (details.stack != null) {
+        debugPrint(details.stack.toString());
+      }
+    };
+    runApp(const MainApp());
+  }, (error, stack) {
+    debugPrint('Uncaught zone error: $error');
+    debugPrint(stack.toString());
+  });
 }
 
 class MainApp extends StatefulWidget {

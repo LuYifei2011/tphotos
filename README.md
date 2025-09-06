@@ -3,6 +3,7 @@
 使用 Flutter 的**非官方** TerraPhotos 客户端，实现照片管理。
 
 > 平台支持：Android、Windows、iOS（无签名构建）、macOS（未签名）。
+> 仅测试了 Android 与 Windows，其他平台如有问题请提 issue。
 
 此 README 侧重于开发/调试信息；运行说明、架构要点与常见陷阱请参见仓库内 `lib/` 与 `.github/copilot-instructions.md`。
 

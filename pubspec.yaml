@@ -14,6 +14,11 @@ dependencies:
   pointycastle: ^3.9.1
   shared_preferences: ^2.3.2
   visibility_detector: ^0.3.3
+  saver_gallery: ^4.0.1
+  path: ^1.9.0
+  video_player: ^2.9.1
+  fvp: ^0.34.0
+  video_player_control_panel: ^1.1.3
 
 dev_dependencies:
   flutter_test:
