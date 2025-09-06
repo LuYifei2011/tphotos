@@ -121,7 +121,7 @@ jobs:
 
       - name: Install Inno Setup
         run: |
-          choco install innosetup --version=6.3.2
+          choco install innosetup
         shell: pwsh
 
       - name: Archive and rename Windows build
@@ -211,6 +211,7 @@ jobs:
         with:
           channel: 'stable'
           cache: true
+          flutter-version: '3.35.3'  # 指定具体版本以支持ARM64
       - name: Install Linux desktop deps
         run: |
           sudo apt-get update
@@ -235,8 +236,15 @@ jobs:
           BUNDLE="build/linux/${{ matrix.arch }}/release/bundle"
           APPIMAGE_NAME="TPhotos-${VERSION}-linux-${{ matrix.arch }}.AppImage"
           # Install appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${{ matrix.arch }}.AppImage
-          chmod +x appimagetool-${{ matrix.arch }}.AppImage
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage
+            chmod +x appimagetool-aarch64.AppImage
+            TOOL="./appimagetool-aarch64.AppImage"
+          else
+            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+            chmod +x appimagetool-x86_64.AppImage
+            TOOL="./appimagetool-x86_64.AppImage"
+          fi
           # Create AppDir structure
           mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
           cp -r "$BUNDLE"/* AppDir/usr/bin/
@@ -244,7 +252,7 @@ jobs:
           echo "[Desktop Entry]\nName=TPhotos\nExec=TPhotos\nIcon=tphotos\nType=Application\nCategories=Utility;" > AppDir/usr/share/applications/tphotos.desktop
           cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/tphotos.png  # Adjust path if needed
           # Create AppImage
-          ./appimagetool-${{ matrix.arch }}.AppImage AppDir "$APPIMAGE_NAME"
+          $TOOL AppDir "$APPIMAGE_NAME"
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
