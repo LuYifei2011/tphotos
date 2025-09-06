@@ -1,5 +1,5 @@
-name: Release
-run-name: Release ${{ github.ref_name }}
+name: Release Draft
+run-name: Release Draft ${{ github.ref_name }}
 
 on:
   push:
@@ -49,10 +49,10 @@ jobs:
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p release
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release/tphotos-${VERSION}-android-arm32v7.apk"
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release/tphotos-${VERSION}-android-arm64v8.apk"
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk "release/tphotos-${VERSION}-android-x64.apk"
-          cp build/app/outputs/bundle/release/app-release.aab "release/tphotos-${VERSION}-android-google-play.aab"
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release/TPhotos-${VERSION}-android-arm32v7.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release/TPhotos-${VERSION}-android-arm64v8.apk"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk "release/TPhotos-${VERSION}-android-x64.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "release/TPhotos-${VERSION}-android-google-play.aab"
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -119,17 +119,30 @@ jobs:
         run: flutter build windows --release
         shell: pwsh
 
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --version=6.3.2
+        shell: pwsh
+
       - name: Archive and rename Windows build
         run: |
           $ErrorActionPreference = "Stop"
           $outDir = "build/windows/x64/runner/Release"
           if (-not (Test-Path $outDir)) { Get-ChildItem -Recurse build/windows | Write-Output; throw "Output dir not found" }
           $version = $env:GITHUB_REF_NAME -replace '^v',''
-          $zipName = "tphotos-$version-windows-x86-64.zip"
+          $zipName = "TPhotos-$version-windows-x86-64.zip"
           Compress-Archive -Path "$outDir/*" -DestinationPath $zipName
-          $exe = Get-ChildItem -Path $outDir -Filter *.exe | Select-Object -First 1
-          if (-not $exe) { Get-ChildItem $outDir | Write-Output; throw "No exe found" }
-          Copy-Item $exe.FullName "tphotos-$version-windows-x86-64.exe"
+        shell: pwsh
+
+      - name: Create Windows Installer (EXE)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          $outDir = "build/windows/x64/runner/Release"
+          # Run Inno Setup Compiler
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$version /DSourceDir=$outDir inno-setup.iss
+          # Rename output EXE
+          Move-Item "Output\TPhotos-$version-setup.exe" "TPhotos-$version-windows-x86-64.exe"
         shell: pwsh
 
       - name: Upload Windows artifact
@@ -137,8 +150,8 @@ jobs:
         with:
           name: windows
           path: |
-            tphotos-*-windows-x86-64.zip
-            tphotos-*-windows-x86-64.exe
+            TPhotos-*-windows-x86-64.zip
+            TPhotos-*-windows-x86-64.exe
 
   macos:
     name: macOS
@@ -169,7 +182,7 @@ jobs:
           APP_PATH=$(ls -d ${OUT_DIR}/*.app | head -n 1)
           if [ -z "$APP_PATH" ]; then echo "No .app found in ${OUT_DIR}" && ls -la ${OUT_DIR} && exit 1; fi
           VERSION="${GITHUB_REF_NAME#v}"
-          DMG_NAME="tphotos-${VERSION}.dmg"
+          DMG_NAME="TPhotos-${VERSION}.dmg"
           hdiutil create -volname "tphotos" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
           mkdir -p build
           mv "$DMG_NAME" build/
@@ -181,8 +194,15 @@ jobs:
           path: build/tphotos-*.dmg
 
   linux:
-    name: Linux
-    runs-on: ubuntu-latest
+    name: Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-latest
+          - arch: arm64
+            os: ubuntu-22.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -205,14 +225,33 @@ jobs:
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
-          BUNDLE="build/linux/x64/release/bundle"
+          BUNDLE="build/linux/${{ matrix.arch }}/release/bundle"
           if [ ! -d "$BUNDLE" ]; then echo "Bundle not found"; ls -R build/linux; exit 1; fi
-          tar czf "tphotos-${VERSION}-linux-x86-64.tar.gz" -C "$BUNDLE" .
+          tar czf "TPhotos-${VERSION}-linux-${{ matrix.arch }}.tar.gz" -C "$BUNDLE" .
+      - name: Create AppImage
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUNDLE="build/linux/${{ matrix.arch }}/release/bundle"
+          APPIMAGE_NAME="TPhotos-${VERSION}-linux-${{ matrix.arch }}.AppImage"
+          # Install appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${{ matrix.arch }}.AppImage
+          chmod +x appimagetool-${{ matrix.arch }}.AppImage
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp -r "$BUNDLE"/* AppDir/usr/bin/
+          # Add desktop file and icon (assume icon exists in project)
+          echo "[Desktop Entry]\nName=TPhotos\nExec=TPhotos\nIcon=tphotos\nType=Application\nCategories=Utility;" > AppDir/usr/share/applications/tphotos.desktop
+          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/tphotos.png  # Adjust path if needed
+          # Create AppImage
+          ./appimagetool-${{ matrix.arch }}.AppImage AppDir "$APPIMAGE_NAME"
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux
-          path: tphotos-*-linux-x86-64.tar.gz
+          name: linux-${{ matrix.arch }}
+          path: |
+            TPhotos-*-linux-${{ matrix.arch }}.tar.gz
+            TPhotos-*-linux-${{ matrix.arch }}.AppImage
 
   release:
     name: Create GitHub Release
@@ -231,7 +270,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          draft: false
+          draft: true
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: |
             dist/android/*.apk
@@ -240,4 +279,5 @@ jobs:
             dist/macos/*.dmg
             dist/windows/*.zip
             dist/windows/*.exe
-            dist/linux/*.tar.gz
+            dist/linux-*/*.tar.gz
+            dist/linux-*/*.AppImage
