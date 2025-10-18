@@ -20,9 +20,9 @@ void main() {
     // 使用 fvp 替换/增强 video_player，在桌面优先启用
     try {
       fvp.registerWith(options: {
-        'platforms': ['windows', 'macos', 'linux'],
+        'platforms': ['windows', 'macos', 'linux', 'android', 'ios'],
         // 可按需添加解码器或低延迟设置
-        // 'video.decoders': ['D3D11', 'NVDEC', 'FFmpeg'],
+        'video.decoders': ['D3D11', 'NVDEC', 'FFmpeg'],
       });
     } catch (e) {
       debugPrint('fvp register failed: $e');
