@@ -121,7 +121,7 @@ jobs:
 
       - name: Install Inno Setup
         run: |
-          choco install innosetup --version=6.3.2
+          choco install innosetup
         shell: pwsh
 
       - name: Archive and rename Windows build
@@ -191,18 +191,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: build/tphotos-*.dmg
+          path: build/TPhotos-*.dmg
 
   linux:
-    name: Linux (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - arch: x86_64
-            os: ubuntu-latest
-          - arch: arm64
-            os: ubuntu-22.04-arm
+    name: Linux (x86_64)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -225,33 +218,15 @@ jobs:
         run: |
           set -e
           VERSION="${GITHUB_REF_NAME#v}"
-          BUNDLE="build/linux/${{ matrix.arch }}/release/bundle"
+          BUNDLE="build/linux/x64/release/bundle"
           if [ ! -d "$BUNDLE" ]; then echo "Bundle not found"; ls -R build/linux; exit 1; fi
-          tar czf "TPhotos-${VERSION}-linux-${{ matrix.arch }}.tar.gz" -C "$BUNDLE" .
-      - name: Create AppImage
-        run: |
-          set -e
-          VERSION="${GITHUB_REF_NAME#v}"
-          BUNDLE="build/linux/${{ matrix.arch }}/release/bundle"
-          APPIMAGE_NAME="TPhotos-${VERSION}-linux-${{ matrix.arch }}.AppImage"
-          # Install appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${{ matrix.arch }}.AppImage
-          chmod +x appimagetool-${{ matrix.arch }}.AppImage
-          # Create AppDir structure
-          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-          cp -r "$BUNDLE"/* AppDir/usr/bin/
-          # Add desktop file and icon (assume icon exists in project)
-          echo "[Desktop Entry]\nName=TPhotos\nExec=TPhotos\nIcon=tphotos\nType=Application\nCategories=Utility;" > AppDir/usr/share/applications/tphotos.desktop
-          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/tphotos.png  # Adjust path if needed
-          # Create AppImage
-          ./appimagetool-${{ matrix.arch }}.AppImage AppDir "$APPIMAGE_NAME"
+          tar czf "TPhotos-${VERSION}-linux-x86_64.tar.gz" -C "$BUNDLE" .
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.arch }}
+          name: linux-x86_64
           path: |
-            TPhotos-*-linux-${{ matrix.arch }}.tar.gz
-            TPhotos-*-linux-${{ matrix.arch }}.AppImage
+            TPhotos-*-linux-x86_64.tar.gz
 
   release:
     name: Create GitHub Release
@@ -280,4 +255,3 @@ jobs:
             dist/windows/*.zip
             dist/windows/*.exe
             dist/linux-*/*.tar.gz
-            dist/linux-*/*.AppImage
