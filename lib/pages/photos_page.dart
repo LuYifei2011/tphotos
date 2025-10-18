@@ -1,19 +1,23 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
-import 'package:saver_gallery/saver_gallery.dart';
 import 'package:path/path.dart' as p;
-import '../api/tos_api.dart';
-import '../models/timeline_models.dart';
-import '../models/photo_list_models.dart';
-import 'photos/photo_grid.dart';
-import 'package:visibility_detector/visibility_detector.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:saver_gallery/saver_gallery.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:video_player_control_panel/video_player_control_panel.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+
+import '../api/tos_api.dart';
+import '../models/photo_list_models.dart';
+import '../models/timeline_models.dart';
+import 'photos/photo_grid.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -30,38 +34,103 @@ enum HomeSection {
   settings,
 }
 
-// ---------- ThumbnailManager: 并发限制 + 去重（in-flight dedupe）+ 内存 LRU 缓存 ----------
+// ---------- ThumbnailManager: 并发限制 + 去重（in-flight dedupe）+ 内存 LRU + 磁盘缓存 ----------
 class ThumbnailManager {
   ThumbnailManager._internal();
   static final ThumbnailManager instance = ThumbnailManager._internal();
 
-  /// 最大并发请求数，按需调整（4-8 常用）
   final int maxConcurrent = 6;
   int _running = 0;
 
   final Queue<_QueuedTask> _queue = Queue<_QueuedTask>();
-
-  /// 正在进行的请求去重（key -> Future）
   final Map<String, Future<Uint8List>> _inFlight = {};
 
-  /// 简单 LRU 内存缓存
   final int _memoryCapacity = 200;
-  final LinkedHashMap<String, Uint8List> _memoryCache = LinkedHashMap();
+  final LinkedHashMap<String, _MemoryEntry> _memoryCache = LinkedHashMap();
 
-  /// 对外接口：传入 key 与 fetcher（返回 List<int>）
+  static const int _diskCapacity = 400;
+  Directory? _cacheDir;
+  File? _indexFile;
+  final Map<String, _DiskEntry> _diskIndex = {};
+  Future<void>? _initFuture;
+  bool _indexSaveScheduled = false;
+
+  Future<void> _ensureInitialized() {
+    return _initFuture ??= _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final baseDir = await getTemporaryDirectory();
+      final dir = Directory(p.join(baseDir.path, 'tphotos', 'thumb_cache'));
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      _cacheDir = dir;
+      _indexFile = File(p.join(dir.path, 'index.json'));
+      if (await _indexFile!.exists()) {
+        try {
+          final content = await _indexFile!.readAsString();
+          final decoded = jsonDecode(content);
+          if (decoded is Map<String, dynamic>) {
+            final entries = decoded['entries'];
+            if (entries is Map<String, dynamic>) {
+              entries.forEach((key, value) {
+                if (value is Map<String, dynamic>) {
+                  final entry = _DiskEntry.fromJson(value);
+                  if (entry != null) {
+                    _diskIndex[key] = entry;
+                  }
+                }
+              });
+            }
+          }
+        } catch (_) {
+          _diskIndex.clear();
+        }
+      }
+    } catch (_) {
+      _cacheDir = null;
+      _indexFile = null;
+      _diskIndex.clear();
+    }
+  }
+
   Future<Uint8List> load(
     String key,
-    Future<List<int>> Function() fetcher,
-  ) async {
-    // 1) 内存缓存命中
+    Future<List<int>> Function() fetcher, {
+    int? stamp,
+  }) async {
     final mem = _memoryCache.remove(key);
     if (mem != null) {
-      // 重新插入标记为最近使用
-      _memoryCache[key] = mem;
-      return mem;
+      final matches = stamp == null || mem.stamp == null || mem.stamp == stamp;
+      if (matches) {
+        _memoryCache[key] = mem;
+        return mem.bytes;
+      }
     }
 
-    // 2) 去重：如果已有请求在飞，就复用
+    await _ensureInitialized();
+
+    final diskEntry = _diskIndex[key];
+    if (diskEntry != null) {
+      final matches = stamp == null || diskEntry.stamp == stamp;
+      if (matches && _cacheDir != null) {
+        final file = File(p.join(_cacheDir!.path, diskEntry.fileName));
+        try {
+          final bytes = await file.readAsBytes();
+          diskEntry.lastAccess = DateTime.now().millisecondsSinceEpoch;
+          _putToMemory(key, bytes, stamp ?? diskEntry.stamp);
+          _scheduleIndexSave();
+          return bytes;
+        } catch (_) {
+          await _removeDiskEntry(key, scheduleSave: true);
+        }
+      } else if (diskEntry.stamp != stamp) {
+        await _removeDiskEntry(key, scheduleSave: true);
+      }
+    }
+
     final inFlight = _inFlight[key];
     if (inFlight != null) return inFlight;
 
@@ -73,7 +142,10 @@ class ThumbnailManager {
         try {
           final list = await fetcher();
           final bytes = Uint8List.fromList(list);
-          _putToMemory(key, bytes);
+          _putToMemory(key, bytes, stamp);
+          if (stamp != null) {
+            await _putToDisk(key, bytes, stamp);
+          }
           if (!completer.isCompleted) completer.complete(bytes);
         } catch (e, st) {
           if (!completer.isCompleted) completer.completeError(e, st);
@@ -88,12 +160,83 @@ class ThumbnailManager {
     });
   }
 
-  void _putToMemory(String key, Uint8List bytes) {
-    if (_memoryCache.containsKey(key)) _memoryCache.remove(key);
-    _memoryCache[key] = bytes;
+  void _putToMemory(String key, Uint8List bytes, int? stamp) {
+    _memoryCache.remove(key);
+    _memoryCache[key] = _MemoryEntry(bytes, stamp);
     if (_memoryCache.length > _memoryCapacity) {
       _memoryCache.remove(_memoryCache.keys.first);
     }
+  }
+
+  Future<void> _putToDisk(String key, Uint8List bytes, int stamp) async {
+    if (_cacheDir == null) return;
+    final fileName = _fileNameForKey(key);
+    final file = File(p.join(_cacheDir!.path, fileName));
+    try {
+      await file.writeAsBytes(bytes, flush: true);
+      _diskIndex[key] = _DiskEntry(
+        fileName: fileName,
+        stamp: stamp,
+        lastAccess: DateTime.now().millisecondsSinceEpoch,
+      );
+      await _evictOverflow();
+      _scheduleIndexSave();
+    } catch (_) {}
+  }
+
+  Future<void> _evictOverflow() async {
+    if (_cacheDir == null) return;
+    while (_diskIndex.length > _diskCapacity) {
+      String? oldestKey;
+      int? oldestAccess;
+      _diskIndex.forEach((key, value) {
+        if (oldestAccess == null || value.lastAccess < oldestAccess!) {
+          oldestAccess = value.lastAccess;
+          oldestKey = key;
+        }
+      });
+      if (oldestKey == null) break;
+      await _removeDiskEntry(oldestKey!, scheduleSave: false);
+    }
+  }
+
+  Future<void> _removeDiskEntry(
+    String key, {
+    required bool scheduleSave,
+  }) async {
+    final entry = _diskIndex.remove(key);
+    if (scheduleSave) {
+      _scheduleIndexSave();
+    }
+    if (entry == null || _cacheDir == null) {
+      return;
+    }
+    final file = File(p.join(_cacheDir!.path, entry.fileName));
+    try {
+      await file.delete();
+    } catch (_) {}
+  }
+
+  String _fileNameForKey(String key) {
+    final encoded = base64UrlEncode(utf8.encode(key)).replaceAll('=', '');
+    return '$encoded.bin';
+  }
+
+  void _scheduleIndexSave() {
+    if (_indexFile == null || _indexSaveScheduled) return;
+    _indexSaveScheduled = true;
+    Future.microtask(() async {
+      _indexSaveScheduled = false;
+      if (_indexFile == null) return;
+      try {
+        final data = {
+          'entries': _diskIndex.map(
+            (key, value) => MapEntry(key, value.toJson()),
+          ),
+        };
+        await _indexFile!.writeAsString(jsonEncode(data));
+      } catch (_) {}
+    });
   }
 
   void _schedule() {
@@ -102,13 +245,53 @@ class ThumbnailManager {
       _running++;
       task.run().whenComplete(() {
         _running--;
-        // 继续调度队列
         _schedule();
       });
     }
   }
 
   void clearMemoryCache() => _memoryCache.clear();
+}
+
+class _MemoryEntry {
+  final Uint8List bytes;
+  final int? stamp;
+  _MemoryEntry(this.bytes, this.stamp);
+}
+
+class _DiskEntry {
+  _DiskEntry({
+    required this.fileName,
+    required this.stamp,
+    required this.lastAccess,
+  });
+
+  final String fileName;
+  final int stamp;
+  int lastAccess;
+
+  Map<String, dynamic> toJson() => {
+    'file': fileName,
+    'stamp': stamp,
+    'lastAccess': lastAccess,
+  };
+
+  static _DiskEntry? fromJson(Map<String, dynamic> json) {
+    final file = json['file'] as String?;
+    final stampValue = json['stamp'];
+    if (file == null || stampValue == null) {
+      return null;
+    }
+    final lastAccessValue = json['lastAccess'];
+    return _DiskEntry(
+      fileName: file,
+      stamp: stampValue is int ? stampValue : (stampValue as num).toInt(),
+      lastAccess: lastAccessValue is int
+          ? lastAccessValue
+          : (lastAccessValue as num?)?.toInt() ??
+                DateTime.now().millisecondsSinceEpoch,
+    );
+  }
 }
 
 class _QueuedTask {
@@ -153,6 +336,7 @@ class _PhotosPageState extends State<PhotosPage> {
 
   // 缩略图的 ValueNotifier，用于局部更新，避免大量 FutureBuilder 重建
   final Map<String, ValueNotifier<Uint8List?>> _thumbNotifiers = {};
+  final Map<String, int> _thumbStamps = {};
 
   // per-date UI state for sliver-based lazy building
   final Map<int, bool> _dateStarted = {}; // key -> whether fetch started
@@ -174,18 +358,32 @@ class _PhotosPageState extends State<PhotosPage> {
     );
   }
 
-  Future<void> _ensureThumbLoaded(String path) async {
-    final notifier = _thumbNotifierFor(path);
-    if (notifier.value != null) return; // 已经有缓存或正在加载完成
+  Future<void> _ensureThumbLoaded(PhotoItem item) async {
+    final key = item.thumbnailPath;
+    final notifier = _thumbNotifierFor(key);
+    final targetStamp = item.timestamp;
+    final previousStamp = _thumbStamps[key];
+    final stampChanged = previousStamp != null && previousStamp != targetStamp;
+
+    _thumbStamps[key] = targetStamp;
+
+    if (stampChanged) {
+      notifier.value = null;
+    } else if (notifier.value != null) {
+      return;
+    }
+
     try {
       final bytes = await ThumbnailManager.instance.load(
-        path,
-        () => widget.api.photos.thumbnailBytes(path),
+        key,
+        () => widget.api.photos.thumbnailBytes(item.thumbnailPath),
+        stamp: targetStamp,
       );
-      // 不把 bytes 再存一份到页面级缓存，直接通知 UI
       notifier.value = bytes;
     } catch (e) {
-      // 不要在失败时频繁抛出 setState，保持占位图显示即可
+      if (kDebugMode) {
+        debugPrint('缩略图加载失败: $e');
+      }
     }
   }
 
@@ -243,6 +441,7 @@ class _PhotosPageState extends State<PhotosPage> {
         n.dispose();
       }
       _thumbNotifiers.clear();
+      _thumbStamps.clear();
     });
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1583,6 +1782,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
         await Process.run('xdg-open', [dir]);
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('打开文件夹失败: $e')));

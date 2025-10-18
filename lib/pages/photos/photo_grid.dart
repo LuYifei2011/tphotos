@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../models/photo_list_models.dart';
@@ -6,7 +7,7 @@ class PhotoGrid extends StatelessWidget {
   final List<PhotoItem> items;
   final void Function(PhotoItem) onPhotoTap;
   final Map<String, ValueNotifier<Uint8List?>> thumbNotifiers;
-  final void Function(String) ensureThumbLoaded;
+  final Future<void> Function(PhotoItem) ensureThumbLoaded;
 
   const PhotoGrid({
     super.key,
@@ -39,7 +40,7 @@ class PhotoGrid extends StatelessWidget {
                     builder: (context, bytes, _) {
                       if (bytes == null) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          ensureThumbLoaded(p.thumbnailPath);
+                          unawaited(ensureThumbLoaded(p));
                         });
                         return const ColoredBox(
                           color: Color(0x11000000),
