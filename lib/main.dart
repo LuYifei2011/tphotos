@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api/tos_api.dart';
 import 'pages/login_page.dart';
@@ -9,6 +10,13 @@ import 'package:fvp/fvp.dart' as fvp;
 void main() {
   runZonedGuarded(() {
     WidgetsFlutterBinding.ensureInitialized();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarContrastEnforced: false,
+      systemStatusBarContrastEnforced: false,
+    ));
     // 使用 fvp 替换/增强 video_player，在桌面优先启用
     try {
       fvp.registerWith(options: {
@@ -39,15 +47,17 @@ class MainApp extends StatefulWidget {
   State<MainApp> createState() => _MainAppState();
 }
 
-class _MainAppState extends State<MainApp> {
+class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   Future<Widget>? _initial;
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initial = _decideInitialPage();
     _loadThemeMode();
+    _applySystemUiOverlay(_themeMode);
   }
 
   Future<Widget> _decideInitialPage() async {
@@ -90,12 +100,13 @@ class _MainAppState extends State<MainApp> {
       }
     }
     // 无服务器地址或登录失败，进入登录页（可输入服务器地址）
-  return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
+    return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
   }
 
   // 无需在此处统一释放 API，由页面持有并在登出时释放
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -105,6 +116,7 @@ class _MainAppState extends State<MainApp> {
     setState(() {
       _themeMode = _parseThemeMode(modeStr);
     });
+    _applySystemUiOverlay(_themeMode);
   }
 
   ThemeMode _parseThemeMode(String? s) {
@@ -141,6 +153,44 @@ class _MainAppState extends State<MainApp> {
     setState(() => _themeMode = next);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('themeMode', _themeModeToString(next));
+    _applySystemUiOverlay(next);
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    super.didChangePlatformBrightness();
+    if (_themeMode == ThemeMode.system) {
+      _applySystemUiOverlay(ThemeMode.system);
+    }
+  }
+
+  void _applySystemUiOverlay(ThemeMode mode) {
+    final dispatcher = WidgetsBinding.instance.platformDispatcher;
+    final platformBrightness = dispatcher.platformBrightness;
+    Brightness target;
+    switch (mode) {
+      case ThemeMode.light:
+        target = Brightness.light;
+        break;
+      case ThemeMode.dark:
+        target = Brightness.dark;
+        break;
+      case ThemeMode.system:
+        target = platformBrightness;
+        break;
+    }
+    final iconBrightness = target == Brightness.dark ? Brightness.light : Brightness.dark;
+    final overlay = SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: iconBrightness,
+      systemNavigationBarContrastEnforced: false,
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: iconBrightness,
+      statusBarBrightness: target,
+      systemStatusBarContrastEnforced: false,
+    );
+    SystemChrome.setSystemUIOverlayStyle(overlay);
   }
 
   @override
