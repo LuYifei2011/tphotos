@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../api/tos_api.dart';
+import '../api/tos_client.dart';
 
 class LoginPage extends StatefulWidget {
   final ThemeMode? themeMode;
@@ -42,16 +47,52 @@ class _LoginPageState extends State<LoginPage> {
       _loading = true;
       _error = null;
     });
+    final primaryServer = _serverCtrl.text.trim();
+    SharedPreferences? prefs;
+    TosAPI? api;
+    late Map<String, dynamic> res;
     try {
-      final api = TosAPI(_serverCtrl.text.trim());
-      final res = await api.auth.login(
-        _userCtrl.text.trim(),
-        _passCtrl.text,
-        keepLogin: _remember,
-      );
-      if (res['code'] == true) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('server', _serverCtrl.text.trim());
+      prefs = await SharedPreferences.getInstance();
+      final fallbackServer = prefs.getString('tnas_online_url');
+
+      Future<Map<String, dynamic>> attempt(String baseUrl) async {
+        final currentApi = TosAPI(baseUrl);
+        try {
+          final response = await currentApi.auth.login(
+            _userCtrl.text.trim(),
+            _passCtrl.text,
+            keepLogin: _remember,
+          );
+          api = currentApi;
+          return response;
+        } catch (e) {
+          currentApi.dispose();
+          rethrow;
+        }
+      }
+
+      try {
+        res = await attempt(primaryServer);
+      } on Object catch (primaryError) {
+        if (fallbackServer != null &&
+            fallbackServer.isNotEmpty &&
+            fallbackServer != primaryServer &&
+            _isConnectivityError(primaryError)) {
+          try {
+            res = await attempt(fallbackServer);
+          } on Object catch (fallbackError) {
+            _setLoginError(primaryError, fallbackServer, fallbackError);
+            return;
+          }
+        } else {
+          _setLoginError(primaryError, null, null);
+          return;
+        }
+      }
+
+      final response = res;
+      if (response['code'] == true) {
+        await prefs.setString('server', primaryServer);
         await prefs.setString('username', _userCtrl.text.trim());
         if (_remember) {
           await prefs.setString('password', _passCtrl.text);
@@ -59,20 +100,74 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.remove('password');
         }
         await prefs.setBool('remember', _remember);
+        await prefs.setString('server_last_used', api!.baseUrl);
+
+        await _fetchAndStoreOnlineUrl(api!, prefs);
 
         if (!mounted) return;
-        // 使用命名路由，避免页面间循环依赖
-        Navigator.of(context).pushReplacementNamed(
-          '/photos',
-          arguments: api,
-        );
+        Navigator.of(context).pushReplacementNamed('/photos', arguments: api);
       } else {
-        setState(() => _error = res['msg']?.toString() ?? '登录失败');
+        api?.dispose();
+        setState(() => _error = response['msg']?.toString() ?? '登录失败');
       }
     } catch (e) {
-      setState(() => _error = '登录失败: $e');
+      api?.dispose();
+      setState(() => _error = '登录失败: ${_describeError(e)}');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _isConnectivityError(Object error) {
+    return error is SocketException ||
+        error is HandshakeException ||
+        error is HttpException ||
+        error is TimeoutException;
+  }
+
+  String _describeError(Object error) {
+    if (error is APIError) {
+      return '${error.message} (code: ${error.code})';
+    }
+    if (error is SocketException) {
+      return error.message;
+    }
+    if (error is HandshakeException) {
+      return 'TLS 握手失败';
+    }
+    if (error is HttpException) {
+      return error.message;
+    }
+    if (error is TimeoutException) {
+      return '请求超时';
+    }
+    return error.toString();
+  }
+
+  void _setLoginError(
+    Object primaryError,
+    String? fallbackServer,
+    Object? fallbackError,
+  ) {
+    final buffer = StringBuffer(_describeError(primaryError));
+    if (fallbackServer != null && fallbackError != null) {
+      buffer.write('\n使用 TNAS Online 地址($fallbackServer) 时失败: ');
+      buffer.write(_describeError(fallbackError));
+    }
+    setState(() => _error = '登录失败: $buffer');
+  }
+
+  Future<void> _fetchAndStoreOnlineUrl(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      final url = await api.online.nodeUrl();
+      if (url != null && url.isNotEmpty) {
+        await prefs.setString('tnas_online_url', url);
+      }
+    } catch (_) {
+      // Ignore failures when fetching TNAS Online URL; login already succeeded.
     }
   }
 
@@ -127,7 +222,8 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       Checkbox(
                         value: _remember,
-                        onChanged: (v) => setState(() => _remember = v ?? false),
+                        onChanged: (v) =>
+                            setState(() => _remember = v ?? false),
                       ),
                       const Text('记住我并自动登录'),
                     ],

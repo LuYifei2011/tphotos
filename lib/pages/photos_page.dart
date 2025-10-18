@@ -338,6 +338,9 @@ class _PhotosPageState extends State<PhotosPage> {
   final Map<String, ValueNotifier<Uint8List?>> _thumbNotifiers = {};
   final Map<String, int> _thumbStamps = {};
 
+  String? _serverLastUsed;
+  String? _username;
+
   // per-date UI state for sliver-based lazy building
   final Map<int, bool> _dateStarted = {}; // key -> whether fetch started
   final Map<int, List<PhotoItem>> _dateItems =
@@ -417,10 +420,16 @@ class _PhotosPageState extends State<PhotosPage> {
       final v = prefs.getInt('space') ?? 2;
       _space = (v == 1) ? 1 : 2;
       _defaultSpace = _space;
+      _username = prefs.getString('username');
+      _serverLastUsed =
+          prefs.getString('server_last_used') ?? widget.api.baseUrl;
     } catch (_) {
       _space = 1;
       _defaultSpace = 1;
+      _username = null;
+      _serverLastUsed = widget.api.baseUrl;
     }
+    _serverLastUsed ??= widget.api.baseUrl;
     if (!mounted) return;
     setState(() {});
     await _load();
@@ -1419,6 +1428,19 @@ extension on _PhotosPageState {
   Widget _buildSettings() {
     return ListView(
       children: [
+        ListTile(
+          leading: const Icon(Icons.link),
+          title: const Text('当前连接'),
+          subtitle: Text(_serverLastUsed ?? widget.api.baseUrl),
+        ),
+        ListTile(
+          leading: const Icon(Icons.person),
+          title: const Text('当前账号'),
+          subtitle: Text(
+            (_username != null && _username!.isNotEmpty) ? _username! : '未保存',
+          ),
+        ),
+        const Divider(),
         const ListTile(
           title: Text('默认空间'),
           subtitle: Text('用于决定启动时加载的空间，也会立即应用到当前页面'),

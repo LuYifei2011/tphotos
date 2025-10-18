@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api/tos_api.dart';
+import 'api/tos_client.dart';
 import 'pages/login_page.dart';
 import 'pages/photos_page.dart';
 import 'package:fvp/fvp.dart' as fvp;
@@ -66,32 +68,49 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     final savedUser = prefs.getString('username');
     final savedPass = prefs.getString('password');
     final remember = prefs.getBool('remember') ?? false;
+    final fallbackServer = prefs.getString('tnas_online_url');
 
     if (savedServer != null && savedServer.isNotEmpty) {
-      final api = TosAPI(savedServer);
-      // 尝试会话有效性
+      TosAPI? api;
+      Object? primaryError;
       try {
-        final state = await api.auth.isLoginState();
-        if (state['code'] == true) {
-          return PhotosPage(
-            api: api,
-            themeMode: _themeMode,
-            onToggleTheme: _toggleThemeMode,
-          );
-        }
-      } catch (_) {}
+        api = await _autoLoginWithBase(
+          baseUrl: savedServer,
+          prefs: prefs,
+          username: savedUser,
+          password: savedPass,
+          remember: remember,
+        );
+      } on Object catch (e) {
+        primaryError = e;
+      }
 
-      // 自动登录
-      if (remember && savedUser != null && savedPass != null) {
+      if (api != null) {
+        return PhotosPage(
+          api: api,
+          themeMode: _themeMode,
+          onToggleTheme: _toggleThemeMode,
+        );
+      }
+
+      final shouldTryFallback = fallbackServer != null &&
+          fallbackServer.isNotEmpty &&
+          fallbackServer != savedServer &&
+          primaryError != null &&
+          _isConnectivityError(primaryError);
+
+      if (shouldTryFallback) {
         try {
-          final res = await api.auth.login(
-            savedUser,
-            savedPass,
-            keepLogin: true,
+          final fallbackApi = await _autoLoginWithBase(
+            baseUrl: fallbackServer,
+            prefs: prefs,
+            username: savedUser,
+            password: savedPass,
+            remember: remember,
           );
-          if (res['code'] == true) {
+          if (fallbackApi != null) {
             return PhotosPage(
-              api: api,
+              api: fallbackApi,
               themeMode: _themeMode,
               onToggleTheme: _toggleThemeMode,
             );
@@ -246,5 +265,81 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         },
       ),
     );
+  }
+
+  bool _isConnectivityError(Object error) {
+    return error is SocketException ||
+        error is HandshakeException ||
+        error is HttpException ||
+        error is TimeoutException;
+  }
+
+  Future<TosAPI?> _autoLoginWithBase({
+    required String baseUrl,
+    required SharedPreferences prefs,
+    String? username,
+    String? password,
+    required bool remember,
+  }) async {
+    final api = TosAPI(baseUrl);
+    Map<String, dynamic>? state;
+    try {
+      state = await api.auth.isLoginState();
+    } on APIError {
+      // 会话已失效，继续尝试登录
+    } on Object catch (e) {
+      api.dispose();
+      if (_isConnectivityError(e)) {
+        rethrow;
+      }
+      return null;
+    }
+
+    if (state != null && state['code'] == true) {
+      await prefs.setString('server_last_used', api.baseUrl);
+      await _refreshTnasOnlineUrl(api, prefs);
+      return api;
+    }
+
+    if (!remember || username == null || password == null) {
+      api.dispose();
+      return null;
+    }
+
+    try {
+      final res = await api.auth.login(
+        username,
+        password,
+        keepLogin: true,
+      );
+      if (res['code'] == true) {
+        await prefs.setString('server_last_used', api.baseUrl);
+        await _refreshTnasOnlineUrl(api, prefs);
+        return api;
+      }
+    } on APIError {
+      api.dispose();
+      return null;
+    } on Object catch (e) {
+      api.dispose();
+      if (_isConnectivityError(e)) {
+        rethrow;
+      }
+      return null;
+    }
+
+    api.dispose();
+    return null;
+  }
+
+  Future<void> _refreshTnasOnlineUrl(TosAPI api, SharedPreferences prefs) async {
+    try {
+      final url = await api.online.nodeUrl();
+      if (url != null && url.isNotEmpty) {
+        await prefs.setString('tnas_online_url', url);
+      }
+    } catch (_) {
+      // 忽略在线地址刷新失败
+    }
   }
 }
