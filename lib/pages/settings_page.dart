@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -21,11 +23,15 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late int _selectedSpace;
   bool _isSaving = false;
+  String? _appName;
+  String? _appVersion;
+  final Uri _repoUrl = Uri.parse('https://github.com/LuYifei2011/tphotos');
 
   @override
   void initState() {
     super.initState();
     _selectedSpace = widget.defaultSpace == 1 ? 1 : 2;
+    _loadPackageInfo();
   }
 
   @override
@@ -50,9 +56,9 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _selectedSpace = previous);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('切换失败: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('切换失败: $e')),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -60,12 +66,59 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _loadPackageInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _appName = info.appName;
+        _appVersion = info.version;
+      });
+    } catch (_) {
+      // Ignore errors and keep fallback values.
+    }
+  }
+
+  void _showAbout() {
+    final name = _appName ?? 'TPhotos';
+    final version = _appVersion ?? '未知版本';
+    showAboutDialog(
+      context: context,
+      applicationName: name,
+      applicationVersion: version,
+      applicationLegalese: '© 2025 LuYifei2011',
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 16),
+          child: Text('非官方TerraPhotos客户端。'),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: TextButton.icon(
+            onPressed: _openGitHub,
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('访问 GitHub 仓库'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openGitHub() async {
+    if (!await launchUrl(_repoUrl, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法打开 GitHub 链接')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final usernameLabel =
         (widget.username != null && widget.username!.isNotEmpty)
-        ? widget.username!
-        : '未保存';
+            ? widget.username!
+            : '未保存';
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -117,6 +170,20 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 24),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(_appName ?? 'TPhotos'),
+            subtitle: Text('版本 ${_appVersion ?? '获取中…'}'),
+            onTap: _showAbout,
+          ),
+          ListTile(
+            leading: const Icon(Icons.open_in_new),
+            title: const Text('GitHub 仓库'),
+            subtitle: Text(_repoUrl.toString()),
+            onTap: _openGitHub,
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
