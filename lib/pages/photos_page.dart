@@ -18,6 +18,7 @@ import '../api/tos_api.dart';
 import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
 import 'photos/photo_grid.dart';
+import 'settings_page.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -31,7 +32,6 @@ enum HomeSection {
   recent,
   favorites,
   shares,
-  settings,
 }
 
 // ---------- ThumbnailManager: 并发限制 + 去重（in-flight dedupe）+ 内存 LRU + 磁盘缓存 ----------
@@ -675,7 +675,14 @@ class _PhotosPageState extends State<PhotosPage> {
             _menuTile('收藏', Icons.favorite, HomeSection.favorites),
             _menuTile('分享', Icons.share, HomeSection.shares),
             const Divider(height: 1),
-            _menuTile('设置', Icons.settings, HomeSection.settings),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('设置'),
+              onTap: () {
+                Navigator.pop(context);
+                _openSettings();
+              },
+            ),
           ],
         ),
       ),
@@ -705,8 +712,6 @@ class _PhotosPageState extends State<PhotosPage> {
         return '收藏';
       case HomeSection.shares:
         return '分享';
-      case HomeSection.settings:
-        return '设置';
     }
   }
 
@@ -734,6 +739,29 @@ class _PhotosPageState extends State<PhotosPage> {
         }
       },
     );
+  }
+
+  Future<void> _openSettings() async {
+    final connection = _serverLastUsed ?? widget.api.baseUrl;
+    final defaultSpace = _defaultSpace;
+    final username = _username;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => SettingsPage(
+          connection: connection,
+          username: username,
+          defaultSpace: defaultSpace,
+          onDefaultSpaceChanged: _handleDefaultSpaceChanged,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleDefaultSpaceChanged(int value) async {
+    await _saveDefaultSpace(value);
+    if (value != _space) {
+      await _onSpaceChanged(value);
+    }
   }
 
   Widget _buildBody() {
@@ -789,9 +817,6 @@ class _PhotosPageState extends State<PhotosPage> {
                 ],
               ),
       );
-    }
-    if (_section == HomeSection.settings) {
-      return _buildSettings();
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
@@ -1418,64 +1443,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 }
 
 // 已用 JkVideoControlPanel 替换旧的 _ControlsOverlay
-
-// ---------------- 设置页（仅“默认空间”） ----------------
-extension on _PhotosPageState {
-  Future<void> _onDefaultSpaceChanged(int v) async {
-    return _saveDefaultSpace(v);
-  }
-
-  Widget _buildSettings() {
-    return ListView(
-      children: [
-        ListTile(
-          leading: const Icon(Icons.link),
-          title: const Text('当前连接'),
-          subtitle: Text(_serverLastUsed ?? widget.api.baseUrl),
-        ),
-        ListTile(
-          leading: const Icon(Icons.person),
-          title: const Text('当前账号'),
-          subtitle: Text(
-            (_username != null && _username!.isNotEmpty) ? _username! : '未保存',
-          ),
-        ),
-        const Divider(),
-        const ListTile(
-          title: Text('默认空间'),
-          subtitle: Text('用于决定启动时加载的空间，也会立即应用到当前页面'),
-        ),
-        RadioListTile<int>(
-          value: 1,
-          groupValue: _defaultSpace,
-          onChanged: (v) {
-            if (v != null) _onDefaultSpaceChanged(v);
-          },
-          title: const Text('个人空间'),
-          secondary: const Icon(Icons.person),
-        ),
-        RadioListTile<int>(
-          value: 2,
-          groupValue: _defaultSpace,
-          onChanged: (v) {
-            if (v != null) _onDefaultSpaceChanged(v);
-          },
-          title: const Text('公共空间'),
-          secondary: const Icon(Icons.people),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            '提示：该设置仅影响下次启动时的默认空间，不会改变当前已加载的空间。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-}
 
 class PhotoViewer extends StatefulWidget {
   final List<PhotoItem> photos;
