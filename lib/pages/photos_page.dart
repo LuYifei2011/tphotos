@@ -1609,30 +1609,19 @@ class _PhotoViewerState extends State<PhotoViewer> {
       final p = widget.photos[i];
       debugPrint('[PhotoViewer] Prefetch index $i: ${p.path}');
 
-      // 加载字节数据
-      unawaited(
-        _loadOriginal(p.path)
-            .then((bytes) {
-              // 获取或创建 ImageProvider
-              final provider = _getOrCreateImageProvider(p.path, bytes);
-              // 预解码图片
-              debugPrint('[PhotoViewer] Precaching image for: ${p.path}');
-              return precacheImage(provider, context)
-                  .then((_) {
-                    debugPrint(
-                      '[PhotoViewer] ✓ Precache completed for: ${p.path}',
-                    );
-                  })
-                  .catchError((e) {
-                    debugPrint(
-                      '[PhotoViewer] ✗ Precache failed for ${p.path}: $e',
-                    );
-                  });
-            })
-            .catchError((e, st) {
-              debugPrint('[PhotoViewer] Prefetch error for ${p.path}: $e');
-            }),
-      );
+      // 加载字节数据并预解码，需在使用 context 前检查 mounted
+      unawaited(() async {
+        try {
+          final bytes = await _loadOriginal(p.path);
+          if (!mounted) return;
+          final provider = _getOrCreateImageProvider(p.path, bytes);
+          debugPrint('[PhotoViewer] Precaching image for: ${p.path}');
+          await precacheImage(provider, context);
+          debugPrint('[PhotoViewer] ✓ Precache completed for: ${p.path}');
+        } catch (e, _) {
+          debugPrint('[PhotoViewer] Prefetch error for ${p.path}: $e');
+        }
+      }());
     }
 
     prefetch(idx);
