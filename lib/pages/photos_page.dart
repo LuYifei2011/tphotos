@@ -91,9 +91,7 @@ class ThumbnailManager {
           _diskIndex.clear();
         }
       }
-      debugPrint(
-        '[ThumbCache] dir=${dir.path}, entries=${_diskIndex.length}',
-      );
+      debugPrint('[ThumbCache] dir=${dir.path}, entries=${_diskIndex.length}');
     } catch (e) {
       debugPrint('[ThumbCache] init failed: $e');
       _cacheDir = null;
@@ -534,8 +532,9 @@ class _PhotosPageState extends State<PhotosPage> {
         _showPhotoScrollLabel = false;
         _headerKeys.clear();
         if (res.data.isNotEmpty && res.data.first is TimelineItem) {
-          _currentPhotoGroupLabel =
-              _formatDateLabel(res.data.first as TimelineItem);
+          _currentPhotoGroupLabel = _formatDateLabel(
+            res.data.first as TimelineItem,
+          );
         } else {
           _currentPhotoGroupLabel = null;
         }
@@ -639,13 +638,14 @@ class _PhotosPageState extends State<PhotosPage> {
 
     final maxExtent = notification.metrics.maxScrollExtent;
     final nextFraction = maxExtent <= 0
-      ? 0.0
-      : (notification.metrics.pixels / maxExtent).clamp(0.0, 1.0) as double;
+        ? 0.0
+        : (notification.metrics.pixels / maxExtent).clamp(0.0, 1.0) as double;
     if ((nextFraction - _photoThumbFraction).abs() > 0.001) {
       setState(() => _photoThumbFraction = nextFraction);
     }
 
-    if (notification is ScrollStartNotification && notification.dragDetails != null) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
       _showPhotoGroupLabelNow();
     } else if (notification is ScrollUpdateNotification &&
         notification.dragDetails != null) {
@@ -671,7 +671,8 @@ class _PhotosPageState extends State<PhotosPage> {
       final viewport = RenderAbstractViewport.of(render);
       if (viewport == null) continue;
       final offsetToReveal = viewport.getOffsetToReveal(render, 0).offset;
-      if (offsetToReveal <= metrics.pixels + 1.0 && offsetToReveal > bestOffset) {
+      if (offsetToReveal <= metrics.pixels + 1.0 &&
+          offsetToReveal > bestOffset) {
         bestOffset = offsetToReveal;
         bestItem = item;
       }
@@ -717,7 +718,8 @@ class _PhotosPageState extends State<PhotosPage> {
     final alignmentY = (_photoThumbFraction.clamp(0.0, 1.0) * 2) - 1;
     final media = MediaQuery.of(context);
     final insetTop = 5.0; // 避免完全贴在 appBar 上没有空隙
-    final insetBottom = media.viewPadding.bottom + (_isMobile ? 6.0 : 5.0); // 移动设备圆角屏幕底部留更多空隙
+    final insetBottom =
+        media.viewPadding.bottom + (_isMobile ? 6.0 : 5.0); // 移动设备圆角屏幕底部留更多空隙
     return Positioned.fill(
       child: Padding(
         padding: EdgeInsets.only(top: insetTop, bottom: insetBottom),
@@ -733,7 +735,9 @@ class _PhotosPageState extends State<PhotosPage> {
                 box ??= context.findRenderObject() as RenderBox?;
                 if (box == null) return;
                 final local = box!.globalToLocal(globalPosition);
-                final fraction = (local.dy / maxHeight).clamp(0.0, 1.0).toDouble();
+                final fraction = (local.dy / maxHeight)
+                    .clamp(0.0, 1.0)
+                    .toDouble();
                 _jumpToScrollFraction(fraction);
               }
 
@@ -752,8 +756,9 @@ class _PhotosPageState extends State<PhotosPage> {
                     onPanUpdate: _isMobile
                         ? (details) => handleDrag(details.globalPosition)
                         : null,
-                    onPanEnd:
-                        _isMobile ? (_) => _scheduleHidePhotoGroupLabel() : null,
+                    onPanEnd: _isMobile
+                        ? (_) => _scheduleHidePhotoGroupLabel()
+                        : null,
                     onTapDown: _isMobile
                         ? (details) {
                             _showPhotoGroupLabelNow();
@@ -1081,7 +1086,8 @@ class _PhotosPageState extends State<PhotosPage> {
     return '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
   }
 
-  GlobalKey _headerKeyFor(int ts) => _headerKeys.putIfAbsent(ts, () => GlobalKey());
+  GlobalKey _headerKeyFor(int ts) =>
+      _headerKeys.putIfAbsent(ts, () => GlobalKey());
 
   // 构建每个日期对应的 sliver 片段（header + grid/loader）
   List<Widget> _buildDateSlivers(TimelineItem item) {
