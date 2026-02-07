@@ -29,6 +29,13 @@ class OnlineAPI {
       return null;
     }
 
+    // 新版接口直接在根字段返回 node_url
+    final nodeUrl = data['nodeURL'];
+    if (nodeUrl is String && nodeUrl.isNotEmpty) {
+      return nodeUrl;
+    }
+
+    // 兼容旧版接口从 components 数组中查找 cloudnas 组件的 node_url
     final components = data['components'];
     if (components is! List) {
       return null;

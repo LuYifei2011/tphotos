@@ -338,7 +338,6 @@ class _PhotosPageState extends State<PhotosPage> {
   final Map<String, ValueNotifier<Uint8List?>> _thumbNotifiers = {};
   final Map<String, int> _thumbStamps = {};
 
-  String? _serverLastUsed;
   String? _username;
 
   // per-date UI state for sliver-based lazy building
@@ -421,15 +420,11 @@ class _PhotosPageState extends State<PhotosPage> {
       _space = (v == 1) ? 1 : 2;
       _defaultSpace = _space;
       _username = prefs.getString('username');
-      _serverLastUsed =
-          prefs.getString('server_last_used') ?? widget.api.baseUrl;
     } catch (_) {
       _space = 1;
       _defaultSpace = 1;
       _username = null;
-      _serverLastUsed = widget.api.baseUrl;
     }
-    _serverLastUsed ??= widget.api.baseUrl;
     if (!mounted) return;
     setState(() {});
     await _load();
@@ -732,7 +727,7 @@ class _PhotosPageState extends State<PhotosPage> {
   }
 
   Future<void> _openSettings() async {
-    final connection = _serverLastUsed ?? widget.api.baseUrl;
+    final connection = widget.api.baseUrl;
     final defaultSpace = _defaultSpace;
     final username = _username;
     await Navigator.of(context).push<void>(

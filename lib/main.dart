@@ -76,7 +76,8 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     final savedUser = prefs.getString('username');
     final savedPass = prefs.getString('password');
     final remember = prefs.getBool('remember') ?? false;
-    final fallbackServer = prefs.getString('tnas_online_url');
+    final ddnsServer = prefs.getString('tnas_ddns_url');
+    final tnasOnlineServer = prefs.getString('tnas_online_url');
 
     if (savedServer != null && savedServer.isNotEmpty) {
       TosAPI? api;
@@ -97,17 +98,37 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         return api;
       }
 
-      final shouldTryFallback =
-          fallbackServer != null &&
-          fallbackServer.isNotEmpty &&
-          fallbackServer != savedServer &&
-          primaryError != null &&
-          _isConnectivityError(primaryError);
+      final canUseFallback =
+          primaryError != null && _isConnectivityError(primaryError);
 
-      if (shouldTryFallback) {
+      if (canUseFallback &&
+          ddnsServer != null &&
+          ddnsServer.isNotEmpty &&
+          ddnsServer != savedServer) {
+        try {
+          final ddnsApi = await _autoLoginWithBase(
+            baseUrl: ddnsServer,
+            prefs: prefs,
+            username: savedUser,
+            password: savedPass,
+            remember: remember,
+          );
+          if (ddnsApi != null) {
+            return ddnsApi;
+          }
+        } catch (_) {}
+      }
+
+      final shouldTryTnasOnlineFallback =
+          tnasOnlineServer != null &&
+          tnasOnlineServer.isNotEmpty &&
+          tnasOnlineServer != savedServer &&
+          canUseFallback;
+
+      if (shouldTryTnasOnlineFallback) {
         try {
           final fallbackApi = await _autoLoginWithBase(
-            baseUrl: fallbackServer,
+            baseUrl: tnasOnlineServer,
             prefs: prefs,
             username: savedUser,
             password: savedPass,
@@ -324,8 +345,8 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
 
     if (state != null && state['code'] == true) {
-      await prefs.setString('server_last_used', api.baseUrl);
       await _refreshTnasOnlineUrl(api, prefs);
+      await _refreshDdnsUrl(api, prefs);
       return api;
     }
 
@@ -337,8 +358,8 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     try {
       final res = await api.auth.login(username, password, keepLogin: true);
       if (res['code'] == true) {
-        await prefs.setString('server_last_used', api.baseUrl);
         await _refreshTnasOnlineUrl(api, prefs);
+        await _refreshDdnsUrl(api, prefs);
         return api;
       }
     } on APIError {
@@ -367,6 +388,20 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       }
     } catch (_) {
       // 忽略在线地址刷新失败
+    }
+  }
+
+  Future<void> _refreshDdnsUrl(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      final url = await api.ddns.ddnsUrl();
+      if (url != null && url.isNotEmpty) {
+        await prefs.setString('tnas_ddns_url', url);
+      }
+    } catch (_) {
+      // 忽略 DDNS 地址刷新失败
     }
   }
 }

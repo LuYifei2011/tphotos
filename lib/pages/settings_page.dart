@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -25,6 +26,9 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isSaving = false;
   String? _appName;
   String? _appVersion;
+  String? _savedLanServer;
+  String? _savedDdnsServer;
+  String? _savedTnasOnlineServer;
   final Uri _repoUrl = Uri.parse('https://github.com/LuYifei2011/tphotos');
 
   @override
@@ -32,6 +36,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _selectedSpace = widget.defaultSpace == 1 ? 1 : 2;
     _loadPackageInfo();
+    _loadSavedServers();
   }
 
   @override
@@ -79,6 +84,20 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _loadSavedServers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _savedLanServer = prefs.getString('server');
+        _savedDdnsServer = prefs.getString('tnas_ddns_url');
+        _savedTnasOnlineServer = prefs.getString('tnas_online_url');
+      });
+    } catch (_) {
+      // Ignore errors if preferences are unavailable.
+    }
+  }
+
   void _showAbout() {
     final name = _appName ?? 'TPhotos';
     final version = _appVersion ?? '未知版本';
@@ -119,6 +138,16 @@ class _SettingsPageState extends State<SettingsPage> {
         (widget.username != null && widget.username!.isNotEmpty)
         ? widget.username!
         : '未保存';
+    final lanLabel = (_savedLanServer != null && _savedLanServer!.isNotEmpty)
+        ? _savedLanServer!
+        : '未保存';
+    final ddnsLabel = (_savedDdnsServer != null && _savedDdnsServer!.isNotEmpty)
+        ? _savedDdnsServer!
+        : '未保存';
+    final tnasOnlineLabel = (_savedTnasOnlineServer != null &&
+            _savedTnasOnlineServer!.isNotEmpty)
+        ? _savedTnasOnlineServer!
+        : '未保存';
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -127,6 +156,29 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: const Icon(Icons.link),
             title: const Text('当前连接'),
             subtitle: Text(widget.connection),
+          ),
+          ExpansionTile(
+            leading: const Icon(Icons.storage),
+            title: const Text('服务地址'),
+            subtitle: const Text('本地 / DDNS / TNAS.online'),
+            initiallyExpanded: false,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.home),
+                title: const Text('本地地址（已保存）'),
+                subtitle: Text(lanLabel),
+              ),
+              ListTile(
+                leading: const Icon(Icons.public),
+                title: const Text('DDNS 地址'),
+                subtitle: Text(ddnsLabel),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cloud_outlined),
+                title: const Text('TNAS.online 地址'),
+                subtitle: Text(tnasOnlineLabel),
+              ),
+            ],
           ),
           ListTile(
             leading: const Icon(Icons.person),

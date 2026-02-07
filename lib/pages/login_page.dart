@@ -53,7 +53,8 @@ class _LoginPageState extends State<LoginPage> {
     late Map<String, dynamic> res;
     try {
       prefs = await SharedPreferences.getInstance();
-      final fallbackServer = prefs.getString('tnas_online_url');
+      final fallbackDdns = prefs.getString('tnas_ddns_url');
+      final tnasOnlineServer = prefs.getString('tnas_online_url');
 
       Future<Map<String, dynamic>> attempt(String baseUrl) async {
         final currentApi = TosAPI(baseUrl);
@@ -74,18 +75,57 @@ class _LoginPageState extends State<LoginPage> {
       try {
         res = await attempt(primaryServer);
       } on Object catch (primaryError) {
-        if (fallbackServer != null &&
-            fallbackServer.isNotEmpty &&
-            fallbackServer != primaryServer &&
-            _isConnectivityError(primaryError)) {
-          try {
-            res = await attempt(fallbackServer);
-          } on Object catch (fallbackError) {
-            _setLoginError(primaryError, fallbackServer, fallbackError);
+        if (_isConnectivityError(primaryError)) {
+          if (fallbackDdns != null &&
+              fallbackDdns.isNotEmpty &&
+              fallbackDdns != primaryServer) {
+            try {
+              res = await attempt(fallbackDdns);
+            } on Object catch (ddnsError) {
+              if (tnasOnlineServer != null &&
+                  tnasOnlineServer.isNotEmpty &&
+                  tnasOnlineServer != primaryServer &&
+                  tnasOnlineServer != fallbackDdns) {
+                try {
+                  res = await attempt(tnasOnlineServer);
+                } on Object catch (onlineError) {
+                  _setLoginError(
+                    primaryError: primaryError,
+                    ddnsServer: fallbackDdns,
+                    ddnsError: ddnsError,
+                    tnasOnlineServer: tnasOnlineServer,
+                    onlineError: onlineError,
+                  );
+                  return;
+                }
+              } else {
+                _setLoginError(
+                  primaryError: primaryError,
+                  ddnsServer: fallbackDdns,
+                  ddnsError: ddnsError,
+                );
+                return;
+              }
+            }
+          } else if (tnasOnlineServer != null &&
+              tnasOnlineServer.isNotEmpty &&
+              tnasOnlineServer != primaryServer) {
+            try {
+              res = await attempt(tnasOnlineServer);
+            } on Object catch (onlineError) {
+              _setLoginError(
+                primaryError: primaryError,
+                tnasOnlineServer: tnasOnlineServer,
+                onlineError: onlineError,
+              );
+              return;
+            }
+          } else {
+            _setLoginError(primaryError: primaryError);
             return;
           }
         } else {
-          _setLoginError(primaryError, null, null);
+          _setLoginError(primaryError: primaryError);
           return;
         }
       }
@@ -100,9 +140,9 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.remove('password');
         }
         await prefs.setBool('remember', _remember);
-        await prefs.setString('server_last_used', api!.baseUrl);
 
         await _fetchAndStoreOnlineUrl(api!, prefs);
+        await _fetchAndStoreDdnsUrl(api!, prefs);
 
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/photos', arguments: api);
@@ -144,15 +184,21 @@ class _LoginPageState extends State<LoginPage> {
     return error.toString();
   }
 
-  void _setLoginError(
-    Object primaryError,
-    String? fallbackServer,
-    Object? fallbackError,
-  ) {
+  void _setLoginError({
+    required Object primaryError,
+    String? ddnsServer,
+    Object? ddnsError,
+    String? tnasOnlineServer,
+    Object? onlineError,
+  }) {
     final buffer = StringBuffer(_describeError(primaryError));
-    if (fallbackServer != null && fallbackError != null) {
-      buffer.write('\n使用 TNAS Online 地址($fallbackServer) 时失败: ');
-      buffer.write(_describeError(fallbackError));
+    if (ddnsServer != null && ddnsError != null) {
+      buffer.write('\n使用 DDNS 地址($ddnsServer) 时失败: ');
+      buffer.write(_describeError(ddnsError));
+    }
+    if (tnasOnlineServer != null && onlineError != null) {
+      buffer.write('\n使用 TNAS Online 地址($tnasOnlineServer) 时失败: ');
+      buffer.write(_describeError(onlineError));
     }
     setState(() => _error = '登录失败: $buffer');
   }
@@ -168,6 +214,20 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (_) {
       // Ignore failures when fetching TNAS Online URL; login already succeeded.
+    }
+  }
+
+  Future<void> _fetchAndStoreDdnsUrl(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      final url = await api.ddns.ddnsUrl();
+      if (url != null && url.isNotEmpty) {
+        await prefs.setString('tnas_ddns_url', url);
+      }
+    } catch (_) {
+      // Ignore failures when fetching DDNS URL; login already succeeded.
     }
   }
 
