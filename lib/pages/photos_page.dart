@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:saver_gallery/saver_gallery.dart';
@@ -89,7 +90,11 @@ class ThumbnailManager {
           _diskIndex.clear();
         }
       }
-    } catch (_) {
+      debugPrint(
+        '[ThumbCache] dir=${dir.path}, entries=${_diskIndex.length}',
+      );
+    } catch (e) {
+      debugPrint('[ThumbCache] init failed: $e');
       _cacheDir = null;
       _indexFile = null;
       _diskIndex.clear();
@@ -122,13 +127,18 @@ class ThumbnailManager {
           diskEntry.lastAccess = DateTime.now().millisecondsSinceEpoch;
           _putToMemory(key, bytes, stamp ?? diskEntry.stamp);
           _scheduleIndexSave();
+          debugPrint('[ThumbCache] disk HIT $key');
           return bytes;
-        } catch (_) {
+        } catch (e) {
+          debugPrint('[ThumbCache] disk read failed for $key: $e');
           await _removeDiskEntry(key, scheduleSave: true);
         }
       } else if (diskEntry.stamp != stamp) {
+        debugPrint('[ThumbCache] disk stale stamp, evict $key');
         await _removeDiskEntry(key, scheduleSave: true);
       }
+    } else {
+      debugPrint('[ThumbCache] disk MISS (no index) $key');
     }
 
     final inFlight = _inFlight[key];
@@ -181,7 +191,9 @@ class ThumbnailManager {
       );
       await _evictOverflow();
       _scheduleIndexSave();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Thumbnail disk write failed for $key: $e');
+    }
   }
 
   Future<void> _evictOverflow() async {
@@ -218,8 +230,8 @@ class ThumbnailManager {
   }
 
   String _fileNameForKey(String key) {
-    final encoded = base64UrlEncode(utf8.encode(key)).replaceAll('=', '');
-    return '$encoded.bin';
+    final digest = crypto.sha1.convert(utf8.encode(key)).toString();
+    return '$digest.bin';
   }
 
   void _scheduleIndexSave() {
@@ -234,8 +246,10 @@ class ThumbnailManager {
             (key, value) => MapEntry(key, value.toJson()),
           ),
         };
-        await _indexFile!.writeAsString(jsonEncode(data));
-      } catch (_) {}
+        await _indexFile!.writeAsString(jsonEncode(data), flush: true);
+      } catch (e) {
+        debugPrint('Thumbnail index save failed: $e');
+      }
     });
   }
 
