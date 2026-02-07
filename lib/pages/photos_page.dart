@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -388,6 +389,16 @@ class _PhotosPageState extends State<PhotosPage> {
   final Map<int, List<PhotoItem>> _videoDateItems = {};
   final Map<int, Future<PhotoListData>> _videoDateFutures = {};
 
+  // 滚动条与分组标题（日期）提示
+  final ScrollController _photoScrollController = ScrollController();
+  double _photoThumbFraction = 0.0; // 0~1，对应滚动条位置
+  bool _showPhotoScrollLabel = false;
+  Timer? _photoScrollLabelHideTimer;
+  String? _currentPhotoGroupLabel;
+  final Map<int, GlobalKey> _headerKeys = {};
+
+  bool get _isMobile => Platform.isAndroid || Platform.isIOS;
+
   ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
     return _thumbNotifiers.putIfAbsent(
       path,
@@ -426,6 +437,8 @@ class _PhotosPageState extends State<PhotosPage> {
 
   @override
   void dispose() {
+    _photoScrollLabelHideTimer?.cancel();
+    _photoScrollController.dispose();
     _pageController.dispose();
     // dispose notifiers
     for (final n in _thumbNotifiers.values) {
@@ -475,12 +488,16 @@ class _PhotosPageState extends State<PhotosPage> {
       _dateStarted.clear();
       _dateItems.clear();
       _dateFutures.clear();
+      _headerKeys.clear();
       // 重置缩略图 notifiers，避免跨空间污染 UI
       for (final n in _thumbNotifiers.values) {
         n.dispose();
       }
       _thumbNotifiers.clear();
       _thumbStamps.clear();
+      _currentPhotoGroupLabel = null;
+      _showPhotoScrollLabel = false;
+      _photoThumbFraction = 0.0;
     });
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -513,6 +530,15 @@ class _PhotosPageState extends State<PhotosPage> {
       );
       setState(() {
         _photos = res.data;
+        _photoThumbFraction = 0.0;
+        _showPhotoScrollLabel = false;
+        _headerKeys.clear();
+        if (res.data.isNotEmpty && res.data.first is TimelineItem) {
+          _currentPhotoGroupLabel =
+              _formatDateLabel(res.data.first as TimelineItem);
+        } else {
+          _currentPhotoGroupLabel = null;
+        }
       });
     } catch (e) {
       setState(() => _error = '加载失败: $e');
@@ -606,6 +632,168 @@ class _PhotosPageState extends State<PhotosPage> {
             1,
       );
     }
+  }
+
+  bool _handlePhotoScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+
+    final maxExtent = notification.metrics.maxScrollExtent;
+    final nextFraction = maxExtent <= 0
+      ? 0.0
+      : (notification.metrics.pixels / maxExtent).clamp(0.0, 1.0) as double;
+    if ((nextFraction - _photoThumbFraction).abs() > 0.001) {
+      setState(() => _photoThumbFraction = nextFraction);
+    }
+
+    if (notification is ScrollStartNotification && notification.dragDetails != null) {
+      _showPhotoGroupLabelNow();
+    } else if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null) {
+      _showPhotoGroupLabelNow();
+    } else if (notification is ScrollEndNotification) {
+      _scheduleHidePhotoGroupLabel();
+    }
+    _updateLabelFromScroll(notification.metrics);
+    return false;
+  }
+
+  void _updateLabelFromScroll(ScrollMetrics metrics) {
+    double bestOffset = double.negativeInfinity;
+    TimelineItem? bestItem;
+
+    for (final raw in _photos) {
+      final item = raw as TimelineItem;
+      final key = _headerKeyFor(item.timestamp);
+      final ctx = key.currentContext;
+      if (ctx == null) continue;
+      final render = ctx.findRenderObject();
+      if (render == null) continue;
+      final viewport = RenderAbstractViewport.of(render);
+      if (viewport == null) continue;
+      final offsetToReveal = viewport.getOffsetToReveal(render, 0).offset;
+      if (offsetToReveal <= metrics.pixels + 1.0 && offsetToReveal > bestOffset) {
+        bestOffset = offsetToReveal;
+        bestItem = item;
+      }
+    }
+
+    if (bestItem != null) {
+      final label = _formatDateLabel(bestItem);
+      if (label != _currentPhotoGroupLabel) {
+        setState(() {
+          _currentPhotoGroupLabel = label;
+        });
+      }
+    }
+  }
+
+  void _showPhotoGroupLabelNow() {
+    _photoScrollLabelHideTimer?.cancel();
+    if (!_showPhotoScrollLabel) {
+      setState(() => _showPhotoScrollLabel = true);
+    }
+  }
+
+  void _scheduleHidePhotoGroupLabel() {
+    _photoScrollLabelHideTimer?.cancel();
+    _photoScrollLabelHideTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) {
+        setState(() => _showPhotoScrollLabel = false);
+      }
+    });
+  }
+
+  void _jumpToScrollFraction(double fraction) {
+    if (!_photoScrollController.hasClients) return;
+    final maxExtent = _photoScrollController.position.maxScrollExtent;
+    final target = (fraction.clamp(0.0, 1.0)) * maxExtent;
+    _photoScrollController.jumpTo(target);
+    setState(() => _photoThumbFraction = fraction.clamp(0.0, 1.0));
+  }
+
+  Widget _buildPhotoScrollLabelOverlay() {
+    final label = _currentPhotoGroupLabel;
+    if (label == null) return const SizedBox.shrink();
+    final alignmentY = (_photoThumbFraction.clamp(0.0, 1.0) * 2) - 1;
+    final media = MediaQuery.of(context);
+    final insetTop = 5.0; // 避免完全贴在 appBar 上没有空隙
+    final insetBottom = media.viewPadding.bottom + (_isMobile ? 6.0 : 5.0); // 移动设备圆角屏幕底部留更多空隙
+    return Positioned.fill(
+      child: Padding(
+        padding: EdgeInsets.only(top: insetTop, bottom: insetBottom),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 120),
+          opacity: _showPhotoScrollLabel ? 1.0 : 0.0,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxHeight = constraints.maxHeight;
+              RenderBox? box;
+              void handleDrag(Offset globalPosition) {
+                if (!_isMobile) return;
+                box ??= context.findRenderObject() as RenderBox?;
+                if (box == null) return;
+                final local = box!.globalToLocal(globalPosition);
+                final fraction = (local.dy / maxHeight).clamp(0.0, 1.0).toDouble();
+                _jumpToScrollFraction(fraction);
+              }
+
+              return Align(
+                alignment: Alignment(1.0, alignmentY.isNaN ? -1 : alignmentY),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 36.0),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: _isMobile
+                        ? (details) {
+                            _showPhotoGroupLabelNow();
+                            handleDrag(details.globalPosition);
+                          }
+                        : null,
+                    onPanUpdate: _isMobile
+                        ? (details) => handleDrag(details.globalPosition)
+                        : null,
+                    onPanEnd:
+                        _isMobile ? (_) => _scheduleHidePhotoGroupLabel() : null,
+                    onTapDown: _isMobile
+                        ? (details) {
+                            _showPhotoGroupLabelNow();
+                            handleDrag(details.globalPosition);
+                          }
+                        : null,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.82),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 10,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   void _triggerLoadForIndex(int idx) {
@@ -749,6 +937,7 @@ class _PhotosPageState extends State<PhotosPage> {
         if (_section != section) {
           setState(() {
             _section = section;
+            _showPhotoScrollLabel = false;
           });
           if (section == HomeSection.photos && _photos.isEmpty) {
             _load();
@@ -786,30 +975,58 @@ class _PhotosPageState extends State<PhotosPage> {
     if (_section == HomeSection.photos) {
       if (_loading) return const Center(child: CircularProgressIndicator());
       if (_error != null) return Center(child: Text(_error!));
+      final scrollChild = _photos.isEmpty
+          ? ListView(
+              controller: _photoScrollController,
+              children: const [
+                SizedBox(height: 200),
+                Center(child: Text('暂无照片')),
+              ],
+            )
+          : CustomScrollView(
+              controller: _photoScrollController,
+              slivers: [
+                // For each date item we insert a header (SliverToBoxAdapter) and
+                // either a loader/empty widget or a SliverGrid for photos.
+                for (var raw in _photos)
+                  ..._buildDateSlivers(raw as TimelineItem),
+              ],
+            );
 
-      return RefreshIndicator(
-        onRefresh: () async {
-          _datePhotoCache.clear();
-          _dateStarted.clear();
-          _dateItems.clear();
-          _dateFutures.clear();
-          await _load();
-        },
-        child: _photos.isEmpty
-            ? ListView(
-                children: const [
-                  SizedBox(height: 200),
-                  Center(child: Text('暂无照片')),
-                ],
-              )
-            : CustomScrollView(
-                slivers: [
-                  // For each date item we insert a header (SliverToBoxAdapter) and
-                  // either a loader/empty widget or a SliverGrid for photos.
-                  for (var raw in _photos)
-                    ..._buildDateSlivers(raw as TimelineItem),
-                ],
-              ),
+      return Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () async {
+              _datePhotoCache.clear();
+              _dateStarted.clear();
+              _dateItems.clear();
+              _dateFutures.clear();
+              _headerKeys.clear();
+              await _load();
+            },
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handlePhotoScrollNotification,
+              child: _isMobile
+                  ? Scrollbar(
+                      controller: _photoScrollController,
+                      thumbVisibility: false, // 仅滚动时显示
+                      trackVisibility: false,
+                      interactive: true,
+                      thickness: 12,
+                      radius: const Radius.circular(12),
+                      child: scrollChild,
+                    )
+                  : Scrollbar(
+                      controller: _photoScrollController,
+                      thumbVisibility: true,
+                      trackVisibility: true,
+                      interactive: true,
+                      child: scrollChild,
+                    ),
+            ),
+          ),
+          _buildPhotoScrollLabelOverlay(),
+        ],
       );
     }
     if (_section == HomeSection.videos) {
@@ -860,11 +1077,16 @@ class _PhotosPageState extends State<PhotosPage> {
     );
   }
 
+  String _formatDateLabel(TimelineItem item) {
+    return '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
+  }
+
+  GlobalKey _headerKeyFor(int ts) => _headerKeys.putIfAbsent(ts, () => GlobalKey());
+
   // 构建每个日期对应的 sliver 片段（header + grid/loader）
   List<Widget> _buildDateSlivers(TimelineItem item) {
     final key = item.timestamp;
-    final dateLabel =
-        '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
+    final dateLabel = _formatDateLabel(item);
 
     // header: 使用 VisibilityDetector 在可见时触发 fetch
     final header = SliverToBoxAdapter(
@@ -884,6 +1106,7 @@ class _PhotosPageState extends State<PhotosPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
+                key: _headerKeyFor(item.timestamp),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Row(
                   children: [
@@ -1044,8 +1267,7 @@ extension _VideosSection on _PhotosPageState {
 
   List<Widget> _buildVideoDateSlivers(TimelineItem item) {
     final key = item.timestamp;
-    final dateLabel =
-        '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
+    final dateLabel = _formatDateLabel(item);
 
     final header = SliverToBoxAdapter(
       child: VisibilityDetector(
