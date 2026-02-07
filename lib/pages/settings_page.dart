@@ -56,9 +56,9 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _selectedSpace = previous);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('切换失败: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('切换失败: $e')));
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -107,9 +107,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openGitHub() async {
     if (!await launchUrl(_repoUrl, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法打开 GitHub 链接')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法打开 GitHub 链接')));
     }
   }
 
@@ -117,8 +117,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final usernameLabel =
         (widget.username != null && widget.username!.isNotEmpty)
-            ? widget.username!
-            : '未保存';
+        ? widget.username!
+        : '未保存';
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -138,23 +138,25 @@ class _SettingsPageState extends State<SettingsPage> {
             title: Text('默认空间'),
             subtitle: Text('用于决定启动时加载的空间，并立即应用到当前页面'),
           ),
-          RadioListTile<int>(
-            value: 1,
+          RadioGroup<int>(
             groupValue: _selectedSpace,
             onChanged: (v) {
               if (v != null) _changeDefaultSpace(v);
             },
-            title: const Text('个人空间'),
-            secondary: const Icon(Icons.person),
-          ),
-          RadioListTile<int>(
-            value: 2,
-            groupValue: _selectedSpace,
-            onChanged: (v) {
-              if (v != null) _changeDefaultSpace(v);
-            },
-            title: const Text('公共空间'),
-            secondary: const Icon(Icons.people),
+            child: Column(
+              children: [
+                RadioListTile<int>(
+                  value: 1,
+                  title: const Text('个人空间'),
+                  secondary: const Icon(Icons.person),
+                ),
+                RadioListTile<int>(
+                  value: 2,
+                  title: const Text('公共空间'),
+                  secondary: const Icon(Icons.people),
+                ),
+              ],
+            ),
           ),
           if (_isSaving)
             const Padding(
