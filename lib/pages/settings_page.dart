@@ -105,7 +105,7 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       applicationName: name,
       applicationVersion: version,
-      applicationLegalese: '© 2025 LuYifei2011',
+      applicationLegalese: '© 2025-2026 LuYifei2011',
       children: [
         const Padding(
           padding: EdgeInsets.only(top: 16),
