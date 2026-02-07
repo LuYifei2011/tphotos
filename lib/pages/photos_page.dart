@@ -63,7 +63,14 @@ class ThumbnailManager {
 
   Future<void> _init() async {
     try {
-      final baseDir = await getTemporaryDirectory();
+      Directory? baseDir;
+      if (Platform.isAndroid) {
+        final externalDirs = await getExternalCacheDirectories();
+        if (externalDirs != null && externalDirs.isNotEmpty) {
+          baseDir = externalDirs.first;
+        }
+      }
+      baseDir ??= await getTemporaryDirectory();
       final dir = Directory(p.join(baseDir.path, 'tphotos', 'thumb_cache'));
       if (!await dir.exists()) {
         await dir.create(recursive: true);
