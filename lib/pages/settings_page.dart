@@ -136,7 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           const ListTile(
             title: Text('默认空间'),
-            subtitle: Text('用于决定启动时加载的空间，并立即应用到当前页面'),
+            subtitle: Text('用于决定下次启动时加载的空间'),
           ),
           RadioGroup<int>(
             groupValue: _selectedSpace,
@@ -167,7 +167,7 @@ class _SettingsPageState extends State<SettingsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              '提示：该设置会立即生效，并在下次启动时作为默认空间使用。',
+              '提示:该设置将在下次启动应用时生效。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

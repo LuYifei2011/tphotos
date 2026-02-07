@@ -759,9 +759,7 @@ class _PhotosPageState extends State<PhotosPage> {
 
   Future<void> _handleDefaultSpaceChanged(int value) async {
     await _saveDefaultSpace(value);
-    if (value != _space) {
-      await _onSpaceChanged(value);
-    }
+    // 只保存默认空间设置，不影响当前运行时的空间
   }
 
   Widget _buildBody() {
