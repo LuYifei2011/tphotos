@@ -22,7 +22,7 @@ jobs:
           cache: true
 
       - name: Format code
-        run: dart format --line-length 120 --set-exit-if-changed .
+        run: dart format .
 
       - name: Commit
         uses: stefanzweifel/git-auto-commit-action@v5
