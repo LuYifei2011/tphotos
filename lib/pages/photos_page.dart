@@ -21,7 +21,18 @@ import 'photos/photo_grid.dart';
 import 'settings_page.dart';
 
 // 主页各栏目
-enum HomeSection { photos, videos, albums, folders, people, scenes, places, recent, favorites, shares }
+enum HomeSection {
+  photos,
+  videos,
+  albums,
+  folders,
+  people,
+  scenes,
+  places,
+  recent,
+  favorites,
+  shares,
+}
 
 // ---------- ThumbnailManager: 并发限制 + 去重（in-flight dedupe）+ 内存 LRU + 磁盘缓存 ----------
 class ThumbnailManager {
@@ -85,7 +96,11 @@ class ThumbnailManager {
     }
   }
 
-  Future<Uint8List> load(String key, Future<List<int>> Function() fetcher, {int? stamp}) async {
+  Future<Uint8List> load(
+    String key,
+    Future<List<int>> Function() fetcher, {
+    int? stamp,
+  }) async {
     final mem = _memoryCache.remove(key);
     if (mem != null) {
       final matches = stamp == null || mem.stamp == null || mem.stamp == stamp;
@@ -159,7 +174,11 @@ class ThumbnailManager {
     final file = File(p.join(_cacheDir!.path, fileName));
     try {
       await file.writeAsBytes(bytes, flush: true);
-      _diskIndex[key] = _DiskEntry(fileName: fileName, stamp: stamp, lastAccess: DateTime.now().millisecondsSinceEpoch);
+      _diskIndex[key] = _DiskEntry(
+        fileName: fileName,
+        stamp: stamp,
+        lastAccess: DateTime.now().millisecondsSinceEpoch,
+      );
       await _evictOverflow();
       _scheduleIndexSave();
     } catch (_) {}
@@ -181,7 +200,10 @@ class ThumbnailManager {
     }
   }
 
-  Future<void> _removeDiskEntry(String key, {required bool scheduleSave}) async {
+  Future<void> _removeDiskEntry(
+    String key, {
+    required bool scheduleSave,
+  }) async {
     final entry = _diskIndex.remove(key);
     if (scheduleSave) {
       _scheduleIndexSave();
@@ -207,7 +229,11 @@ class ThumbnailManager {
       _indexSaveScheduled = false;
       if (_indexFile == null) return;
       try {
-        final data = {'entries': _diskIndex.map((key, value) => MapEntry(key, value.toJson()))};
+        final data = {
+          'entries': _diskIndex.map(
+            (key, value) => MapEntry(key, value.toJson()),
+          ),
+        };
         await _indexFile!.writeAsString(jsonEncode(data));
       } catch (_) {}
     });
@@ -234,13 +260,21 @@ class _MemoryEntry {
 }
 
 class _DiskEntry {
-  _DiskEntry({required this.fileName, required this.stamp, required this.lastAccess});
+  _DiskEntry({
+    required this.fileName,
+    required this.stamp,
+    required this.lastAccess,
+  });
 
   final String fileName;
   final int stamp;
   int lastAccess;
 
-  Map<String, dynamic> toJson() => {'file': fileName, 'stamp': stamp, 'lastAccess': lastAccess};
+  Map<String, dynamic> toJson() => {
+    'file': fileName,
+    'stamp': stamp,
+    'lastAccess': lastAccess,
+  };
 
   static _DiskEntry? fromJson(Map<String, dynamic> json) {
     final file = json['file'] as String?;
@@ -254,7 +288,8 @@ class _DiskEntry {
       stamp: stampValue is int ? stampValue : (stampValue as num).toInt(),
       lastAccess: lastAccessValue is int
           ? lastAccessValue
-          : (lastAccessValue as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+          : (lastAccessValue as num?)?.toInt() ??
+                DateTime.now().millisecondsSinceEpoch,
     );
   }
 }
@@ -270,7 +305,12 @@ class PhotosPage extends StatefulWidget {
   final TosAPI api;
   final ThemeMode themeMode;
   final VoidCallback onToggleTheme;
-  const PhotosPage({super.key, required this.api, required this.themeMode, required this.onToggleTheme});
+  const PhotosPage({
+    super.key,
+    required this.api,
+    required this.themeMode,
+    required this.onToggleTheme,
+  });
 
   @override
   State<PhotosPage> createState() => _PhotosPageState();
@@ -303,7 +343,8 @@ class _PhotosPageState extends State<PhotosPage> {
 
   // per-date UI state for sliver-based lazy building
   final Map<int, bool> _dateStarted = {}; // key -> whether fetch started
-  final Map<int, List<PhotoItem>> _dateItems = {}; // key -> loaded items (if loaded)
+  final Map<int, List<PhotoItem>> _dateItems =
+      {}; // key -> loaded items (if loaded)
   final Map<int, Future<PhotoListData>> _dateFutures = {};
 
   // 视频页对应日期缓存
@@ -314,7 +355,10 @@ class _PhotosPageState extends State<PhotosPage> {
   final Map<int, Future<PhotoListData>> _videoDateFutures = {};
 
   ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
-    return _thumbNotifiers.putIfAbsent(path, () => ValueNotifier<Uint8List?>(null));
+    return _thumbNotifiers.putIfAbsent(
+      path,
+      () => ValueNotifier<Uint8List?>(null),
+    );
   }
 
   Future<void> _ensureThumbLoaded(PhotoItem item) async {
@@ -377,7 +421,8 @@ class _PhotosPageState extends State<PhotosPage> {
       _space = (v == 1) ? 1 : 2;
       _defaultSpace = _space;
       _username = prefs.getString('username');
-      _serverLastUsed = prefs.getString('server_last_used') ?? widget.api.baseUrl;
+      _serverLastUsed =
+          prefs.getString('server_last_used') ?? widget.api.baseUrl;
     } catch (_) {
       _space = 1;
       _defaultSpace = 1;
@@ -430,7 +475,12 @@ class _PhotosPageState extends State<PhotosPage> {
       _error = null;
     });
     try {
-      final res = await widget.api.photos.timeline(space: _space, fileType: 0, timelineType: 2, order: 'desc');
+      final res = await widget.api.photos.timeline(
+        space: _space,
+        fileType: 0,
+        timelineType: 2,
+        order: 'desc',
+      );
       setState(() {
         _photos = res.data;
       });
@@ -510,14 +560,21 @@ class _PhotosPageState extends State<PhotosPage> {
     const mainAxisSpacing = 4.0;
 
     final crossCount = (width / maxCrossAxisExtent).floor().clamp(1, 100);
-    final itemWidth = (width - (crossCount - 1) * crossAxisSpacing) / crossCount;
+    final itemWidth =
+        (width - (crossCount - 1) * crossAxisSpacing) / crossCount;
     final rows = (itemCount / crossCount).ceil();
     final gridHeight = rows * itemWidth + (rows - 1) * mainAxisSpacing;
 
-    final viewportHeight = mq.size.height - kToolbarHeight - 60; // 60 是标题+padding 的估算
+    final viewportHeight =
+        mq.size.height - kToolbarHeight - 60; // 60 是标题+padding 的估算
 
     if (gridHeight < viewportHeight * 0.8) {
-      _triggerLoadForIndex(_photos.indexWhere((e) => (e as TimelineItem).timestamp == item.timestamp) + 1);
+      _triggerLoadForIndex(
+        _photos.indexWhere(
+              (e) => (e as TimelineItem).timestamp == item.timestamp,
+            ) +
+            1,
+      );
     }
   }
 
@@ -541,7 +598,9 @@ class _PhotosPageState extends State<PhotosPage> {
     _loadingDates.add(key);
     try {
       // 注意：Timeline.timestamp 单位假设为秒；以年月日计算当日范围
-      final start = DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/ 1000;
+      final start =
+          DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/
+          1000;
       final end = start + 86400 - 1;
       final data = await widget.api.photos.photoListAll(
         space: _space,
@@ -571,8 +630,16 @@ class _PhotosPageState extends State<PhotosPage> {
             icon: Icon(_space == 1 ? Icons.person : Icons.people),
             onSelected: _onSpaceChanged,
             itemBuilder: (context) => [
-              CheckedPopupMenuItem<int>(value: 1, checked: _space == 1, child: const Text('个人空间')),
-              CheckedPopupMenuItem<int>(value: 2, checked: _space == 2, child: const Text('公共空间')),
+              CheckedPopupMenuItem<int>(
+                value: 1,
+                checked: _space == 1,
+                child: const Text('个人空间'),
+              ),
+              CheckedPopupMenuItem<int>(
+                value: 2,
+                checked: _space == 2,
+                child: const Text('公共空间'),
+              ),
             ],
           ),
           IconButton(
@@ -641,7 +708,10 @@ class _PhotosPageState extends State<PhotosPage> {
   ListTile _menuTile(String title, IconData icon, HomeSection section) {
     final selected = _section == section;
     return ListTile(
-      leading: Icon(icon, color: selected ? Theme.of(context).colorScheme.primary : null),
+      leading: Icon(
+        icon,
+        color: selected ? Theme.of(context).colorScheme.primary : null,
+      ),
       title: Text(title),
       selected: selected,
       onTap: () {
@@ -706,13 +776,15 @@ class _PhotosPageState extends State<PhotosPage> {
                 slivers: [
                   // For each date item we insert a header (SliverToBoxAdapter) and
                   // either a loader/empty widget or a SliverGrid for photos.
-                  for (var raw in _photos) ..._buildDateSlivers(raw as TimelineItem),
+                  for (var raw in _photos)
+                    ..._buildDateSlivers(raw as TimelineItem),
                 ],
               ),
       );
     }
     if (_section == HomeSection.videos) {
-      if (_videoLoading) return const Center(child: CircularProgressIndicator());
+      if (_videoLoading)
+        return const Center(child: CircularProgressIndicator());
       if (_videoError != null) return Center(child: Text(_videoError!));
       return RefreshIndicator(
         onRefresh: () async {
@@ -726,7 +798,12 @@ class _PhotosPageState extends State<PhotosPage> {
                   Center(child: Text('暂无视频')),
                 ],
               )
-            : CustomScrollView(slivers: [for (var raw in _videos) ..._buildVideoDateSlivers(raw as TimelineItem)]),
+            : CustomScrollView(
+                slivers: [
+                  for (var raw in _videos)
+                    ..._buildVideoDateSlivers(raw as TimelineItem),
+                ],
+              ),
       );
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
@@ -756,7 +833,8 @@ class _PhotosPageState extends State<PhotosPage> {
   // 构建每个日期对应的 sliver 片段（header + grid/loader）
   List<Widget> _buildDateSlivers(TimelineItem item) {
     final key = item.timestamp;
-    final dateLabel = '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
+    final dateLabel =
+        '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
 
     // header: 使用 VisibilityDetector 在可见时触发 fetch
     final header = SliverToBoxAdapter(
@@ -781,9 +859,15 @@ class _PhotosPageState extends State<PhotosPage> {
                   children: [
                     const Icon(Icons.calendar_today, size: 16),
                     const SizedBox(width: 8),
-                    Text(dateLabel, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      dateLabel,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(width: 8),
-                    Text('(${item.photoCount})', style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      '(${item.photoCount})',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),
@@ -802,7 +886,10 @@ class _PhotosPageState extends State<PhotosPage> {
     final items = _dateItems[key];
     if (items == null && _dateFutures[key] != null) {
       // 已经开始但未完成：使用 photoCount 创建占位符
-      final placeholders = _createPlaceholderItems(item.photoCount, item.timestamp);
+      final placeholders = _createPlaceholderItems(
+        item.photoCount,
+        item.timestamp,
+      );
       return [
         header,
         PhotoGrid(
@@ -819,7 +906,10 @@ class _PhotosPageState extends State<PhotosPage> {
       return [
         header,
         const SliverToBoxAdapter(
-          child: Padding(padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8), child: Text('该日期无照片')),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+            child: Text('该日期无照片'),
+          ),
         ),
       ];
     }
@@ -834,8 +924,11 @@ class _PhotosPageState extends State<PhotosPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  PhotoViewer(photos: items, initialIndex: startIndex < 0 ? 0 : startIndex, api: widget.api),
+              builder: (context) => PhotoViewer(
+                photos: items,
+                initialIndex: startIndex < 0 ? 0 : startIndex,
+                api: widget.api,
+              ),
             ),
           );
         },
@@ -882,7 +975,9 @@ extension _VideosSection on _PhotosPageState {
     }
     _videoLoadingDates.add(key);
     try {
-      final start = DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/ 1000;
+      final start =
+          DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/
+          1000;
       final end = start + 86400 - 1;
       final data = await widget.api.photos.photoListAll(
         space: _space,
@@ -919,7 +1014,8 @@ extension _VideosSection on _PhotosPageState {
 
   List<Widget> _buildVideoDateSlivers(TimelineItem item) {
     final key = item.timestamp;
-    final dateLabel = '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
+    final dateLabel =
+        '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
 
     final header = SliverToBoxAdapter(
       child: VisibilityDetector(
@@ -943,9 +1039,15 @@ extension _VideosSection on _PhotosPageState {
                   children: [
                     const Icon(Icons.calendar_today, size: 16),
                     const SizedBox(width: 8),
-                    Text(dateLabel, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      dateLabel,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(width: 8),
-                    Text('(${item.photoCount})', style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      '(${item.photoCount})',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),
@@ -962,7 +1064,10 @@ extension _VideosSection on _PhotosPageState {
     final items = _videoDateItems[key];
     if (items == null && _videoDateFutures[key] != null) {
       // 已经开始但未完成：使用 photoCount 创建占位符
-      final placeholders = _createPlaceholderItems(item.photoCount, item.timestamp);
+      final placeholders = _createPlaceholderItems(
+        item.photoCount,
+        item.timestamp,
+      );
       return [
         header,
         PhotoGrid(
@@ -977,7 +1082,10 @@ extension _VideosSection on _PhotosPageState {
       return [
         header,
         const SliverToBoxAdapter(
-          child: Padding(padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8), child: Text('该日期无视频')),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+            child: Text('该日期无视频'),
+          ),
         ),
       ];
     }
@@ -991,8 +1099,11 @@ extension _VideosSection on _PhotosPageState {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  VideoPlayerPage(videos: items, initialIndex: startIndex < 0 ? 0 : startIndex, api: widget.api),
+              builder: (context) => VideoPlayerPage(
+                videos: items,
+                initialIndex: startIndex < 0 ? 0 : startIndex,
+                api: widget.api,
+              ),
             ),
           );
         },
@@ -1009,7 +1120,12 @@ class VideoPlayerPage extends StatefulWidget {
   final int initialIndex;
   final TosAPI api;
 
-  const VideoPlayerPage({super.key, required this.videos, required this.initialIndex, required this.api});
+  const VideoPlayerPage({
+    super.key,
+    required this.videos,
+    required this.initialIndex,
+    required this.api,
+  });
 
   @override
   State<VideoPlayerPage> createState() => _VideoPlayerPageState();
@@ -1025,7 +1141,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   String? _lastError;
   bool _saving = false; // 保存状态
   String _userHome() =>
-      Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? Directory.systemTemp.path;
+      Platform.environment['USERPROFILE'] ??
+      Platform.environment['HOME'] ??
+      Directory.systemTemp.path;
 
   Future<File> _fallbackDesktopCopy(File src) async {
     final home = _userHome();
@@ -1035,7 +1153,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (await dst.exists()) {
       final base = p.basenameWithoutExtension(src.path);
       final ext = p.extension(src.path);
-      dst = File(p.join(targetDir.path, '${base}_${DateTime.now().millisecondsSinceEpoch}$ext'));
+      dst = File(
+        p.join(
+          targetDir.path,
+          '${base}_${DateTime.now().millisecondsSinceEpoch}$ext',
+        ),
+      );
     }
     return src.copy(dst.path);
   }
@@ -1059,14 +1182,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       try {
         final bytes = await widget.api.photos.originalPhotoBytes(item.path);
         final ext = _inferVideoExtension(item.name);
-        final dir = Directory(p.join(Directory.systemTemp.path, 'tphotos_videos'));
+        final dir = Directory(
+          p.join(Directory.systemTemp.path, 'tphotos_videos'),
+        );
         if (!await dir.exists()) await dir.create(recursive: true);
-        final file = File(p.join(dir.path, '${_sanitizeFileNameWithoutExt(item.name)}$ext'));
+        final file = File(
+          p.join(dir.path, '${_sanitizeFileNameWithoutExt(item.name)}$ext'),
+        );
         await file.writeAsBytes(bytes, flush: true);
-        if (kDebugMode) debugPrint('[VideoPlayer] temp ok path=${file.path} size=${bytes.length}');
+        if (kDebugMode)
+          debugPrint(
+            '[VideoPlayer] temp ok path=${file.path} size=${bytes.length}',
+          );
         return file;
       } catch (e, st) {
-        if (kDebugMode) debugPrint('[VideoPlayer][ERR] download temp failed: $e\n$st');
+        if (kDebugMode)
+          debugPrint('[VideoPlayer][ERR] download temp failed: $e\n$st');
         rethrow;
       }
     });
@@ -1081,13 +1212,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   String _sanitizeFileNameWithoutExt(String name) {
-    final base = name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
+    final base = name.contains('.')
+        ? name.substring(0, name.lastIndexOf('.'))
+        : name;
     return base.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
   }
 
   Future<void> _loadCurrent() async {
     final item = widget.videos[_index];
-    if (kDebugMode) debugPrint('[VideoPlayer] load index=$_index name=${item.name}');
+    if (kDebugMode)
+      debugPrint('[VideoPlayer] load index=$_index name=${item.name}');
     _controller?.dispose();
     _controller = null;
     setState(() {});
@@ -1102,7 +1236,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         _lastError = null;
         if (mounted) setState(() {});
         if (kDebugMode)
-          debugPrint('[VideoPlayer] init file ok dur=${c.value.duration} size=${c.value.size} src=${file.path}');
+          debugPrint(
+            '[VideoPlayer] init file ok dur=${c.value.duration} size=${c.value.size} src=${file.path}',
+          );
       });
     } catch (e, st) {
       _lastError = '初始化失败: $e\n$st';
@@ -1134,7 +1270,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             tooltip: '保存到本地',
             onPressed: _saving ? null : _saveCurrent,
             icon: _saving
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.save_alt),
           ),
         ],
@@ -1153,10 +1293,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                   }
                   return LayoutBuilder(
                     builder: (context, constraints) {
-                      final aspect = _controller!.value.aspectRatio == 0 ? 16 / 9 : _controller!.value.aspectRatio;
+                      final aspect = _controller!.value.aspectRatio == 0
+                          ? 16 / 9
+                          : _controller!.value.aspectRatio;
                       return Center(
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: constraints.maxWidth, maxHeight: constraints.maxHeight),
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth,
+                            maxHeight: constraints.maxHeight,
+                          ),
                           child: AspectRatio(
                             aspectRatio: aspect,
                             child: JkVideoControlPanel(
@@ -1201,12 +1346,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     try {
       final item = widget.videos[_index];
       final file = await _downloadToTemp(item);
-      if (kDebugMode) debugPrint('[VideoPlayer] save file path=${file.path} size=${await file.length()}');
+      if (kDebugMode)
+        debugPrint(
+          '[VideoPlayer] save file path=${file.path} size=${await file.length()}',
+        );
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         // 桌面平台：插件不可用，采用复制到用户 Pictures 目录
         final copied = await _fallbackDesktopCopy(file);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已保存到: ${copied.path}')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('已保存到: ${copied.path}')));
         }
         return;
       }
@@ -1219,21 +1369,31 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         );
         if (!mounted) return;
         final success = result.isSuccess;
-        if (kDebugMode) debugPrint('[VideoPlayer] save result success=$success raw=$result');
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(success ? '已保存到相册' : '保存失败(${result.errorMessage ?? '未知错误'})')));
+        if (kDebugMode)
+          debugPrint('[VideoPlayer] save result success=$success raw=$result');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success ? '已保存到相册' : '保存失败(${result.errorMessage ?? '未知错误'})',
+            ),
+          ),
+        );
       } on MissingPluginException catch (e) {
-        if (kDebugMode) debugPrint('[VideoPlayer][MissingPlugin] $e => fallback');
+        if (kDebugMode)
+          debugPrint('[VideoPlayer][MissingPlugin] $e => fallback');
         final copied = await _fallbackDesktopCopy(file);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('插件缺失，已保存到: ${copied.path}')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('插件缺失，已保存到: ${copied.path}')));
         }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[VideoPlayer][ERR] save failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1253,14 +1413,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           if (_lastError != null)
             Expanded(
               child: SingleChildScrollView(
-                child: Text(_lastError!, style: const TextStyle(fontSize: 12, color: Colors.redAccent)),
+                child: Text(
+                  _lastError!,
+                  style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                ),
               ),
             ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             children: [
-              ElevatedButton.icon(onPressed: _loadCurrent, icon: const Icon(Icons.refresh), label: const Text('重试')),
+              ElevatedButton.icon(
+                onPressed: _loadCurrent,
+                icon: const Icon(Icons.refresh),
+                label: const Text('重试'),
+              ),
               ElevatedButton.icon(
                 onPressed: _openExternalPlayer,
                 icon: const Icon(Icons.open_in_new),
@@ -1286,7 +1453,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('外部打开失败: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('外部打开失败: $e')));
     }
   }
 }
@@ -1298,7 +1467,12 @@ class PhotoViewer extends StatefulWidget {
   final int initialIndex;
   final TosAPI api;
 
-  const PhotoViewer({super.key, required this.photos, required this.initialIndex, required this.api});
+  const PhotoViewer({
+    super.key,
+    required this.photos,
+    required this.initialIndex,
+    required this.api,
+  });
 
   @override
   State<PhotoViewer> createState() => _PhotoViewerState();
@@ -1314,8 +1488,10 @@ class _PhotoViewerState extends State<PhotoViewer> {
   static const int _memoryCapacity = 40;
   static final LinkedHashMap<String, Uint8List> _memoryCache = LinkedHashMap();
   static final Map<String, Future<Uint8List>> _inFlight = {};
-  static final Map<String, Future<Uint8List>> _futureCache = {}; // 缓存 Future 对象，避免重复请求
-  static final Map<String, ImageProvider> _imageProviderCache = {}; // 缓存 ImageProvider，保留解码后的图片
+  static final Map<String, Future<Uint8List>> _futureCache =
+      {}; // 缓存 Future 对象，避免重复请求
+  static final Map<String, ImageProvider> _imageProviderCache =
+      {}; // 缓存 ImageProvider，保留解码后的图片
   // Keyboard intents
   // 定义快捷键意图，配合 Shortcuts/Actions 使用
   // 置于 State 内仅为就近管理
@@ -1331,7 +1507,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
     debugPrint('[PhotoViewer] initState - Current cache status:');
     debugPrint('[PhotoViewer]   - Memory cache size: ${_memoryCache.length}');
     debugPrint('[PhotoViewer]   - Future cache size: ${_futureCache.length}');
-    debugPrint('[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}');
+    debugPrint(
+      '[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}',
+    );
     debugPrint('[PhotoViewer]   - In-flight requests: ${_inFlight.length}');
     _index = widget.initialIndex.clamp(0, widget.photos.length - 1);
     _controller = PageController(initialPage: _index);
@@ -1348,7 +1526,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
     debugPrint('[PhotoViewer] dispose - Cache status before dispose:');
     debugPrint('[PhotoViewer]   - Memory cache size: ${_memoryCache.length}');
     debugPrint('[PhotoViewer]   - Future cache size: ${_futureCache.length}');
-    debugPrint('[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}');
+    debugPrint(
+      '[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}',
+    );
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -1356,26 +1536,28 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
   Future<Uint8List> _loadOriginal(String path) {
     debugPrint('[PhotoViewer] _loadOriginal called for: $path');
-    
+
     // 检查是否已有缓存的 Future
     if (_futureCache.containsKey(path)) {
       debugPrint('[PhotoViewer] ✓ Future cache HIT for: $path');
       return _futureCache[path]!;
     }
-    
+
     debugPrint('[PhotoViewer] ✗ Future cache MISS for: $path');
-    
+
     // 返回缓存的 Future 对象，避免 FutureBuilder 重复触发
     final future = _futureCache.putIfAbsent(path, () {
       // 内存命中
       final mem = _memoryCache.remove(path);
       if (mem != null) {
-        debugPrint('[PhotoViewer] ✓ Memory cache HIT for: $path (${mem.length} bytes)');
+        debugPrint(
+          '[PhotoViewer] ✓ Memory cache HIT for: $path (${mem.length} bytes)',
+        );
         _memoryCache[path] = mem; // LRU 触达
         return Future.value(mem);
       }
       debugPrint('[PhotoViewer] ✗ Memory cache MISS for: $path');
-      
+
       // 去重
       final inflight = _inFlight[path];
       if (inflight != null) {
@@ -1384,29 +1566,38 @@ class _PhotoViewerState extends State<PhotoViewer> {
       }
 
       debugPrint('[PhotoViewer] 🌐 Starting NEW network request for: $path');
-      final newFuture = widget.api.photos.originalPhotoBytes(path).then((bytes) {
-        final data = Uint8List.fromList(bytes);
-        debugPrint('[PhotoViewer] ✓ Network request completed for: $path (${data.length} bytes)');
-        _putToMemory(path, data);
-        return data;
-      }).catchError((e) {
-        debugPrint('[PhotoViewer] ✗ Network request FAILED for: $path - $e');
-        throw e;
-      });
+      final newFuture = widget.api.photos
+          .originalPhotoBytes(path)
+          .then((bytes) {
+            final data = Uint8List.fromList(bytes);
+            debugPrint(
+              '[PhotoViewer] ✓ Network request completed for: $path (${data.length} bytes)',
+            );
+            _putToMemory(path, data);
+            return data;
+          })
+          .catchError((e) {
+            debugPrint(
+              '[PhotoViewer] ✗ Network request FAILED for: $path - $e',
+            );
+            throw e;
+          });
       _inFlight[path] = newFuture;
       return newFuture.whenComplete(() {
         _inFlight.remove(path);
         debugPrint('[PhotoViewer] Removed from in-flight: $path');
       });
     });
-    
+
     return future;
   }
 
   void _putToMemory(String key, Uint8List bytes) {
     if (_memoryCache.containsKey(key)) _memoryCache.remove(key);
     _memoryCache[key] = bytes;
-    debugPrint('[PhotoViewer] Saved to memory cache: $key (${bytes.length} bytes, total: ${_memoryCache.length})');
+    debugPrint(
+      '[PhotoViewer] Saved to memory cache: $key (${bytes.length} bytes, total: ${_memoryCache.length})',
+    );
     if (_memoryCache.length > _memoryCapacity) {
       final removed = _memoryCache.keys.first;
       _memoryCache.remove(removed);
@@ -1422,22 +1613,30 @@ class _PhotoViewerState extends State<PhotoViewer> {
       if (i < 0 || i >= widget.photos.length) return;
       final p = widget.photos[i];
       debugPrint('[PhotoViewer] Prefetch index $i: ${p.path}');
-      
+
       // 加载字节数据
       unawaited(
-        _loadOriginal(p.path).then((bytes) {
-          // 获取或创建 ImageProvider
-          final provider = _getOrCreateImageProvider(p.path, bytes);
-          // 预解码图片
-          debugPrint('[PhotoViewer] Precaching image for: ${p.path}');
-          return precacheImage(provider, context).then((_) {
-            debugPrint('[PhotoViewer] ✓ Precache completed for: ${p.path}');
-          }).catchError((e) {
-            debugPrint('[PhotoViewer] ✗ Precache failed for ${p.path}: $e');
-          });
-        }).catchError((e, st) {
-          debugPrint('[PhotoViewer] Prefetch error for ${p.path}: $e');
-        }),
+        _loadOriginal(p.path)
+            .then((bytes) {
+              // 获取或创建 ImageProvider
+              final provider = _getOrCreateImageProvider(p.path, bytes);
+              // 预解码图片
+              debugPrint('[PhotoViewer] Precaching image for: ${p.path}');
+              return precacheImage(provider, context)
+                  .then((_) {
+                    debugPrint(
+                      '[PhotoViewer] ✓ Precache completed for: ${p.path}',
+                    );
+                  })
+                  .catchError((e) {
+                    debugPrint(
+                      '[PhotoViewer] ✗ Precache failed for ${p.path}: $e',
+                    );
+                  });
+            })
+            .catchError((e, st) {
+              debugPrint('[PhotoViewer] Prefetch error for ${p.path}: $e');
+            }),
       );
     }
 
@@ -1445,30 +1644,44 @@ class _PhotoViewerState extends State<PhotoViewer> {
     prefetch(idx + 1);
     prefetch(idx - 1);
   }
-  
+
   ImageProvider _getOrCreateImageProvider(String path, Uint8List bytes) {
     return _imageProviderCache.putIfAbsent(path, () {
-      debugPrint('[PhotoViewer] Creating ImageProvider for: $path (${bytes.length} bytes)');
-      
+      debugPrint(
+        '[PhotoViewer] Creating ImageProvider for: $path (${bytes.length} bytes)',
+      );
+
       // 对大图片进行分辨率优化，按屏幕宽度缩放
-      final screenWidth = MediaQuery.of(context).size.width * MediaQuery.of(context).devicePixelRatio;
+      final screenWidth =
+          MediaQuery.of(context).size.width *
+          MediaQuery.of(context).devicePixelRatio;
       final maxDimension = screenWidth.toInt() * 2; // 2x 屏幕宽度
-      
+
       final baseProvider = MemoryImage(bytes);
-      
+
       // 如果图片大于 5MB，使用 ResizeImage 优化解码
       if (bytes.length > 5 * 1024 * 1024) {
-        debugPrint('[PhotoViewer] Using ResizeImage for large file: $path, maxDimension=$maxDimension');
-        return ResizeImage(baseProvider, width: maxDimension, allowUpscaling: false);
+        debugPrint(
+          '[PhotoViewer] Using ResizeImage for large file: $path, maxDimension=$maxDimension',
+        );
+        return ResizeImage(
+          baseProvider,
+          width: maxDimension,
+          allowUpscaling: false,
+        );
       }
-      
+
       return baseProvider;
     });
   }
 
   void _goTo(int idx) {
     if (idx < 0 || idx >= widget.photos.length) return;
-    _controller.animateToPage(idx, duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+    _controller.animateToPage(
+      idx,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -1481,8 +1694,16 @@ class _PhotoViewerState extends State<PhotoViewer> {
         foregroundColor: Colors.white,
         actions: [
           if (Platform.isWindows || Platform.isMacOS || Platform.isLinux)
-            IconButton(tooltip: '打开所在文件夹', onPressed: _openSavedFolder, icon: const Icon(Icons.folder_open)),
-          IconButton(tooltip: '下载 (Ctrl/Cmd+S)', onPressed: _saveCurrent, icon: const Icon(Icons.download)),
+            IconButton(
+              tooltip: '打开所在文件夹',
+              onPressed: _openSavedFolder,
+              icon: const Icon(Icons.folder_open),
+            ),
+          IconButton(
+            tooltip: '下载 (Ctrl/Cmd+S)',
+            onPressed: _saveCurrent,
+            icon: const Icon(Icons.download),
+          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -1495,8 +1716,10 @@ class _PhotoViewerState extends State<PhotoViewer> {
             const SingleActivator(LogicalKeyboardKey.arrowRight): _nextIntent,
             const SingleActivator(LogicalKeyboardKey.arrowLeft): _prevIntent,
             const SingleActivator(LogicalKeyboardKey.escape): _escapeIntent,
-            const SingleActivator(LogicalKeyboardKey.keyS, control: true): _saveIntent,
-            const SingleActivator(LogicalKeyboardKey.keyS, meta: true): _saveIntent,
+            const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+                _saveIntent,
+            const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+                _saveIntent,
             const SingleActivator(LogicalKeyboardKey.delete): _deleteIntent,
           },
           actions: <Type, Action<Intent>>{
@@ -1528,7 +1751,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
             ),
             DeletePhotoIntent: CallbackAction<DeletePhotoIntent>(
               onInvoke: (_) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('删除功能未实现：需要后端删除接口')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('删除功能未实现：需要后端删除接口')),
+                );
                 return null;
               },
             ),
@@ -1538,19 +1763,25 @@ class _PhotoViewerState extends State<PhotoViewer> {
             itemCount: widget.photos.length,
             onPageChanged: (i) {
               final timestamp = DateTime.now().millisecondsSinceEpoch;
-              debugPrint('[PhotoViewer][$timestamp] onPageChanged: $_index -> $i');
+              debugPrint(
+                '[PhotoViewer][$timestamp] onPageChanged: $_index -> $i',
+              );
               setState(() => _index = i);
               _prefetchAround(i);
             },
             itemBuilder: (context, i) {
               final p = widget.photos[i];
               final timestamp = DateTime.now().millisecondsSinceEpoch;
-              debugPrint('[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}');
-              
+              debugPrint(
+                '[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}',
+              );
+
               // 检查是否有缓存的 ImageProvider（已预解码）
               final cachedProvider = _imageProviderCache[p.path];
               if (cachedProvider != null) {
-                debugPrint('[PhotoViewer][$timestamp] ⚡ Using cached ImageProvider (pre-decoded): ${p.path}');
+                debugPrint(
+                  '[PhotoViewer][$timestamp] ⚡ Using cached ImageProvider (pre-decoded): ${p.path}',
+                );
                 return InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 5,
@@ -1559,23 +1790,32 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       image: cachedProvider,
                       fit: BoxFit.contain,
                       gaplessPlayback: true,
-                      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                        final now = DateTime.now().millisecondsSinceEpoch;
-                        debugPrint('[PhotoViewer][$now] Image(provider) frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms');
-                        if (frame == null) {
-                          return const Center(child: CircularProgressIndicator(color: Colors.white));
-                        }
-                        return child;
-                      },
+                      frameBuilder:
+                          (context, child, frame, wasSynchronouslyLoaded) {
+                            final now = DateTime.now().millisecondsSinceEpoch;
+                            debugPrint(
+                              '[PhotoViewer][$now] Image(provider) frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms',
+                            );
+                            if (frame == null) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              );
+                            }
+                            return child;
+                          },
                     ),
                   ),
                 );
               }
-              
+
               // 同步检查内存缓存，命中则创建 ImageProvider
               final cached = _memoryCache[p.path];
               if (cached != null) {
-                debugPrint('[PhotoViewer][$timestamp] ⚡ SYNC display from memory cache: ${p.path} (${cached.length} bytes)');
+                debugPrint(
+                  '[PhotoViewer][$timestamp] ⚡ SYNC display from memory cache: ${p.path} (${cached.length} bytes)',
+                );
                 final provider = _getOrCreateImageProvider(p.path, cached);
                 return InteractiveViewer(
                   minScale: 0.5,
@@ -1585,45 +1825,73 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       image: provider,
                       fit: BoxFit.contain,
                       gaplessPlayback: true,
-                      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                        final now = DateTime.now().millisecondsSinceEpoch;
-                        debugPrint('[PhotoViewer][$now] Image.memory frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms');
-                        if (frame == null) {
-                          return const Center(child: CircularProgressIndicator(color: Colors.white));
-                        }
-                        return child;
-                      },
+                      frameBuilder:
+                          (context, child, frame, wasSynchronouslyLoaded) {
+                            final now = DateTime.now().millisecondsSinceEpoch;
+                            debugPrint(
+                              '[PhotoViewer][$now] Image.memory frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms',
+                            );
+                            if (frame == null) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              );
+                            }
+                            return child;
+                          },
                     ),
                   ),
                 );
               }
-              
-              debugPrint('[PhotoViewer][$timestamp] ✗ Memory cache MISS, using FutureBuilder');
+
+              debugPrint(
+                '[PhotoViewer][$timestamp] ✗ Memory cache MISS, using FutureBuilder',
+              );
               // 未命中内存缓存，使用 FutureBuilder 异步加载
               return FutureBuilder<Uint8List>(
                 future: _loadOriginal(p.path),
                 builder: (context, snapshot) {
                   final now = DateTime.now().millisecondsSinceEpoch;
-                  debugPrint('[PhotoViewer][$now] FutureBuilder state: ${snapshot.connectionState}, hasData=${snapshot.hasData}, hasError=${snapshot.hasError}');
+                  debugPrint(
+                    '[PhotoViewer][$now] FutureBuilder state: ${snapshot.connectionState}, hasData=${snapshot.hasData}, hasError=${snapshot.hasError}',
+                  );
                   if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator(color: Colors.white));
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
                   }
                   if (snapshot.hasError || snapshot.data == null) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.broken_image, color: Colors.white, size: 64),
+                          const Icon(
+                            Icons.broken_image,
+                            color: Colors.white,
+                            size: 64,
+                          ),
                           const SizedBox(height: 12),
-                          Text('加载失败', style: const TextStyle(color: Colors.white)),
+                          Text(
+                            '加载失败',
+                            style: const TextStyle(color: Colors.white),
+                          ),
                           const SizedBox(height: 8),
-                          OutlinedButton(onPressed: () => setState(() {}), child: const Text('重试')),
+                          OutlinedButton(
+                            onPressed: () => setState(() {}),
+                            child: const Text('重试'),
+                          ),
                         ],
                       ),
                     );
                   }
-                  debugPrint('[PhotoViewer][$now] FutureBuilder returning InteractiveViewer with ImageProvider');
-                  final provider = _getOrCreateImageProvider(p.path, snapshot.data!);
+                  debugPrint(
+                    '[PhotoViewer][$now] FutureBuilder returning InteractiveViewer with ImageProvider',
+                  );
+                  final provider = _getOrCreateImageProvider(
+                    p.path,
+                    snapshot.data!,
+                  );
                   return InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 5,
@@ -1632,14 +1900,22 @@ class _PhotoViewerState extends State<PhotoViewer> {
                         image: provider,
                         fit: BoxFit.contain,
                         gaplessPlayback: true,
-                        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                          final frameTime = DateTime.now().millisecondsSinceEpoch;
-                          debugPrint('[PhotoViewer][$frameTime] FutureBuilder Image frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${frameTime - timestamp}ms');
-                          if (frame == null) {
-                            return const Center(child: CircularProgressIndicator(color: Colors.white));
-                          }
-                          return child;
-                        },
+                        frameBuilder:
+                            (context, child, frame, wasSynchronouslyLoaded) {
+                              final frameTime =
+                                  DateTime.now().millisecondsSinceEpoch;
+                              debugPrint(
+                                '[PhotoViewer][$frameTime] FutureBuilder Image frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${frameTime - timestamp}ms',
+                              );
+                              if (frame == null) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                );
+                              }
+                              return child;
+                            },
                       ),
                     ),
                   );
@@ -1655,7 +1931,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
   Future<void> _saveCurrent() async {
     final photo = widget.photos[_index];
     try {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在保存...')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('正在保存...')));
       final data = await _loadOriginal(photo.path);
       // 选择保存策略：移动端 -> 系统相册；桌面端 -> 用户图片目录
       if (Platform.isAndroid || Platform.isIOS) {
@@ -1672,11 +1950,17 @@ class _PhotoViewerState extends State<PhotoViewer> {
         // saver_gallery 返回 SaveResult
         final success = (result.isSuccess == true);
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存到系统相册')));
-        } else {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('保存失败: ${result.errorMessage ?? result.toString()}')));
+          ).showSnackBar(const SnackBar(content: Text('已保存到系统相册')));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '保存失败: ${result.errorMessage ?? result.toString()}',
+              ),
+            ),
+          );
         }
       } else {
         // 桌面：保存到用户图片目录
@@ -1689,7 +1973,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
           await File(filePath).writeAsBytes(data, flush: true);
           _lastSavedPath = filePath;
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已保存到: $filePath')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('已保存到: $filePath')));
           return;
         }
         final appDir = Directory(p.join(picturesDir.path, 'TPhotos'));
@@ -1698,11 +1984,15 @@ class _PhotoViewerState extends State<PhotoViewer> {
         await File(filePath).writeAsBytes(data, flush: true);
         _lastSavedPath = filePath;
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已保存到: $filePath')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('已保存到: $filePath')));
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
     }
   }
 
@@ -1710,7 +2000,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
     if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) return;
     final path = _lastSavedPath;
     if (path == null || path.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先下载保存一张图片')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先下载保存一张图片')));
       return;
     }
     try {
@@ -1724,7 +2016,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('打开文件夹失败: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('打开文件夹失败: $e')));
     }
   }
 
@@ -1733,7 +2027,8 @@ class _PhotoViewerState extends State<PhotoViewer> {
     try {
       if (Platform.isWindows) {
         final userProfile = Platform.environment['USERPROFILE'];
-        if (userProfile != null) return Directory(p.join(userProfile, 'Pictures'));
+        if (userProfile != null)
+          return Directory(p.join(userProfile, 'Pictures'));
       } else if (Platform.isMacOS) {
         final home = Platform.environment['HOME'];
         if (home != null) return Directory(p.join(home, 'Pictures'));
