@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'api/tos_api.dart';
 import 'api/tos_client.dart';
 import 'pages/login_page.dart';
@@ -198,9 +199,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         target = platformBrightness;
         break;
     }
-    final iconBrightness = target == Brightness.dark
-        ? Brightness.light
-        : Brightness.dark;
+    final iconBrightness = target == Brightness.dark ? Brightness.light : Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarDividerColor: Colors.transparent,
@@ -216,60 +215,53 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TPhotos',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-        brightness: Brightness.dark,
-      ),
-      themeMode: _themeMode,
-      routes: {
-        '/login': (_) =>
-            LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode),
-        '/photos': (ctx) {
-          final args = ModalRoute.of(ctx)!.settings.arguments;
-          if (args is TosAPI) {
-            return PhotosPage(
-              api: args,
-              themeMode: _themeMode,
-              onToggleTheme: _toggleThemeMode,
-            );
-          }
-          // 回退到登录
-          return LoginPage(
-            themeMode: _themeMode,
-            onToggleTheme: _toggleThemeMode,
-          );
-        },
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        // 使用动态配色（如果可用），否则回退到蓝色种子色
+        ColorScheme lightColorScheme;
+        ColorScheme darkColorScheme;
+
+        if (lightDynamic != null && darkDynamic != null) {
+          // 系统支持动态配色，使用系统配色
+          lightColorScheme = lightDynamic.harmonized();
+          darkColorScheme = darkDynamic.harmonized();
+        } else {
+          // 无动态配色，回退到默认蓝色主题
+          lightColorScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.light);
+          darkColorScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark);
+        }
+
+        return MaterialApp(
+          title: 'TPhotos',
+          theme: ThemeData(useMaterial3: true, colorScheme: lightColorScheme),
+          darkTheme: ThemeData(useMaterial3: true, colorScheme: darkColorScheme),
+          themeMode: _themeMode,
+          routes: {
+            '/login': (_) => LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode),
+            '/photos': (ctx) {
+              final args = ModalRoute.of(ctx)!.settings.arguments;
+              if (args is TosAPI) {
+                return PhotosPage(api: args, themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
+              }
+              // 回退到登录
+              return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
+            },
+          },
+          home: FutureBuilder<TosAPI?>(
+            future: _initial,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              }
+              final api = snapshot.data;
+              if (api != null) {
+                return PhotosPage(api: api, themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
+              }
+              return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
+            },
+          ),
+        );
       },
-      home: FutureBuilder<TosAPI?>(
-        future: _initial,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          final api = snapshot.data;
-          if (api != null) {
-            return PhotosPage(
-              api: api,
-              themeMode: _themeMode,
-              onToggleTheme: _toggleThemeMode,
-            );
-          }
-          return LoginPage(
-            themeMode: _themeMode,
-            onToggleTheme: _toggleThemeMode,
-          );
-        },
-      ),
     );
   }
 
@@ -334,10 +326,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     return null;
   }
 
-  Future<void> _refreshTnasOnlineUrl(
-    TosAPI api,
-    SharedPreferences prefs,
-  ) async {
+  Future<void> _refreshTnasOnlineUrl(TosAPI api, SharedPreferences prefs) async {
     try {
       final url = await api.online.nodeUrl();
       if (url != null && url.isNotEmpty) {
