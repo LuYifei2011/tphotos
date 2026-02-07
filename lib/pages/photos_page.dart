@@ -585,15 +585,8 @@ class _PhotosPageState extends State<PhotosPage> {
       ),
       drawer: Drawer(
         child: ListView(
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.only(top: 48),
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: Text('菜单', style: TextStyle(color: Colors.white, fontSize: 20)),
-              ),
-            ),
             _menuTile('照片', Icons.photo, HomeSection.photos),
             _menuTile('视频', Icons.videocam, HomeSection.videos),
             _menuTile('相册', Icons.photo_album, HomeSection.albums),
