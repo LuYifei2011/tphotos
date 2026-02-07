@@ -105,6 +105,7 @@ class ThumbnailManager {
     String key,
     Future<List<int>> Function() fetcher, {
     int? stamp,
+    bool prioritize = true,
   }) async {
     final mem = _memoryCache.remove(key);
     if (mem != null) {
@@ -142,26 +143,34 @@ class ThumbnailManager {
     }
 
     final inFlight = _inFlight[key];
-    if (inFlight != null) return inFlight;
+    if (inFlight != null) {
+      if (prioritize) _promoteQueuedTask(key);
+      return inFlight;
+    }
 
     final completer = Completer<Uint8List>();
     _inFlight[key] = completer.future;
 
-    _queue.add(
-      _QueuedTask(key, () async {
-        try {
-          final list = await fetcher();
-          final bytes = Uint8List.fromList(list);
-          _putToMemory(key, bytes, stamp);
-          if (stamp != null) {
-            await _putToDisk(key, bytes, stamp);
-          }
-          if (!completer.isCompleted) completer.complete(bytes);
-        } catch (e, st) {
-          if (!completer.isCompleted) completer.completeError(e, st);
+    final task = _QueuedTask(key, () async {
+      try {
+        final list = await fetcher();
+        final bytes = Uint8List.fromList(list);
+        _putToMemory(key, bytes, stamp);
+        if (stamp != null) {
+          await _putToDisk(key, bytes, stamp);
         }
-      }),
-    );
+        if (!completer.isCompleted) completer.complete(bytes);
+      } catch (e, st) {
+        if (!completer.isCompleted) completer.completeError(e, st);
+      }
+    });
+
+    if (prioritize) {
+      _promoteQueuedTask(key);
+      _queue.addFirst(task);
+    } else {
+      _queue.addLast(task);
+    }
 
     _schedule();
 
@@ -261,6 +270,18 @@ class ThumbnailManager {
         _running--;
         _schedule();
       });
+    }
+  }
+
+  // Move a queued task to the front so the most recently requested (visible)
+  // thumbnails run before stale ones.
+  void _promoteQueuedTask(String key) {
+    for (final task in _queue.toList()) {
+      if (task.key == key) {
+        _queue.remove(task);
+        _queue.addFirst(task);
+        break;
+      }
     }
   }
 
