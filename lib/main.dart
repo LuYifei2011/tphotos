@@ -10,36 +10,43 @@ import 'pages/photos_page.dart';
 import 'package:fvp/fvp.dart' as fvp;
 
 void main() {
-  runZonedGuarded(() {
-    WidgetsFlutterBinding.ensureInitialized();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
-      systemNavigationBarContrastEnforced: false,
-      systemStatusBarContrastEnforced: false,
-    ));
-    // 使用 fvp 替换/增强 video_player，在桌面优先启用
-    try {
-      fvp.registerWith(options: {
-        'platforms': ['windows', 'macos', 'linux', 'android', 'ios'],
-        // 可按需添加解码器或低延迟设置
-        'video.decoders': ['D3D11', 'NVDEC', 'FFmpeg'],
-      });
-    } catch (e) {
-      debugPrint('fvp register failed: $e');
-    }
-    FlutterError.onError = (details) {
-      debugPrint('FlutterError: ${details.exceptionAsString()}');
-      if (details.stack != null) {
-        debugPrint(details.stack.toString());
+  runZonedGuarded(
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+          systemStatusBarContrastEnforced: false,
+        ),
+      );
+      // 使用 fvp 替换/增强 video_player，在桌面优先启用
+      try {
+        fvp.registerWith(
+          options: {
+            'platforms': ['windows', 'macos', 'linux', 'android', 'ios'],
+            // 可按需添加解码器或低延迟设置
+            'video.decoders': ['D3D11', 'NVDEC', 'FFmpeg'],
+          },
+        );
+      } catch (e) {
+        debugPrint('fvp register failed: $e');
       }
-    };
-    runApp(const MainApp());
-  }, (error, stack) {
-    debugPrint('Uncaught zone error: $error');
-    debugPrint(stack.toString());
-  });
+      FlutterError.onError = (details) {
+        debugPrint('FlutterError: ${details.exceptionAsString()}');
+        if (details.stack != null) {
+          debugPrint(details.stack.toString());
+        }
+      };
+      runApp(const MainApp());
+    },
+    (error, stack) {
+      debugPrint('Uncaught zone error: $error');
+      debugPrint(stack.toString());
+    },
+  );
 }
 
 class MainApp extends StatefulWidget {
@@ -50,7 +57,7 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
-  Future<Widget>? _initial;
+  Future<TosAPI?>? _initial;
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
@@ -62,7 +69,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     _applySystemUiOverlay(_themeMode);
   }
 
-  Future<Widget> _decideInitialPage() async {
+  Future<TosAPI?> _decideInitialPage() async {
     final prefs = await SharedPreferences.getInstance();
     final savedServer = prefs.getString('server');
     final savedUser = prefs.getString('username');
@@ -86,14 +93,11 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       }
 
       if (api != null) {
-        return PhotosPage(
-          api: api,
-          themeMode: _themeMode,
-          onToggleTheme: _toggleThemeMode,
-        );
+        return api;
       }
 
-      final shouldTryFallback = fallbackServer != null &&
+      final shouldTryFallback =
+          fallbackServer != null &&
           fallbackServer.isNotEmpty &&
           fallbackServer != savedServer &&
           primaryError != null &&
@@ -109,17 +113,13 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             remember: remember,
           );
           if (fallbackApi != null) {
-            return PhotosPage(
-              api: fallbackApi,
-              themeMode: _themeMode,
-              onToggleTheme: _toggleThemeMode,
-            );
+            return fallbackApi;
           }
         } catch (_) {}
       }
     }
-    // 无服务器地址或登录失败，进入登录页（可输入服务器地址）
-    return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
+    // 无服务器地址或登录失败，返回 null（进入登录页）
+    return null;
   }
 
   // 无需在此处统一释放 API，由页面持有并在登出时释放
@@ -198,7 +198,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         target = platformBrightness;
         break;
     }
-    final iconBrightness = target == Brightness.dark ? Brightness.light : Brightness.dark;
+    final iconBrightness = target == Brightness.dark
+        ? Brightness.light
+        : Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarDividerColor: Colors.transparent,
@@ -228,10 +230,8 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       ),
       themeMode: _themeMode,
       routes: {
-        '/login': (_) => LoginPage(
-              themeMode: _themeMode,
-              onToggleTheme: _toggleThemeMode,
-            ),
+        '/login': (_) =>
+            LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode),
         '/photos': (ctx) {
           final args = ModalRoute.of(ctx)!.settings.arguments;
           if (args is TosAPI) {
@@ -248,7 +248,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           );
         },
       },
-      home: FutureBuilder<Widget>(
+      home: FutureBuilder<TosAPI?>(
         future: _initial,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -256,12 +256,18 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
               body: Center(child: CircularProgressIndicator()),
             );
           }
-          final page = snapshot.data ??
-              LoginPage(
-                themeMode: _themeMode,
-                onToggleTheme: _toggleThemeMode,
-              );
-          return page;
+          final api = snapshot.data;
+          if (api != null) {
+            return PhotosPage(
+              api: api,
+              themeMode: _themeMode,
+              onToggleTheme: _toggleThemeMode,
+            );
+          }
+          return LoginPage(
+            themeMode: _themeMode,
+            onToggleTheme: _toggleThemeMode,
+          );
         },
       ),
     );
@@ -307,11 +313,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
 
     try {
-      final res = await api.auth.login(
-        username,
-        password,
-        keepLogin: true,
-      );
+      final res = await api.auth.login(username, password, keepLogin: true);
       if (res['code'] == true) {
         await prefs.setString('server_last_used', api.baseUrl);
         await _refreshTnasOnlineUrl(api, prefs);
@@ -332,7 +334,10 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     return null;
   }
 
-  Future<void> _refreshTnasOnlineUrl(TosAPI api, SharedPreferences prefs) async {
+  Future<void> _refreshTnasOnlineUrl(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
     try {
       final url = await api.online.nodeUrl();
       if (url != null && url.isNotEmpty) {
