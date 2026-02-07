@@ -1,0 +1,31 @@
+name: Format code
+on: [push, pull_request]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    name: Format code
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Format code
+        run: dart format --line-length 120 --set-exit-if-changed .
+
+      - name: Commit
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Format code"
+          branch: ${{ github.head_ref }}
