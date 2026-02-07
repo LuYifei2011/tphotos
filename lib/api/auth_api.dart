@@ -8,12 +8,20 @@ class AuthAPI {
 
   AuthAPI(this._client);
 
-  Future<Map<String, dynamic>> login(String username, String password, {String code = "", bool keepLogin = false}) async {
+  Future<Map<String, dynamic>> login(
+    String username,
+    String password, {
+    String code = "",
+    bool keepLogin = false,
+  }) async {
     // 获取CSRF Token
     await _client.get('/tos/');
 
     // 获取RSA公钥
-    final langResponse = await _client.get('/v2/lang/tos', includeHeaders: true);
+    final langResponse = await _client.get(
+      '/v2/lang/tos',
+      includeHeaders: true,
+    );
     final rsaToken = langResponse['headers']?['x-rsa-token'];
     if (rsaToken == null) {
       throw APIError(400, 'Failed to get RSA token', null);
@@ -21,7 +29,9 @@ class AuthAPI {
 
     // 解析 header 中的 RSA 公钥（x-rsa-token 为 PEM 文本的 Base64）
     final publicKey = _parsePublicKey(rsaToken);
-    final rsa = encrypt.Encrypter(encrypt.RSA(publicKey: publicKey, encoding: encrypt.RSAEncoding.PKCS1));
+    final rsa = encrypt.Encrypter(
+      encrypt.RSA(publicKey: publicKey, encoding: encrypt.RSAEncoding.PKCS1),
+    );
 
     // 使用 RSA 加密密码，并用 base64 传输
     final encryptedPassword = rsa.encrypt(password).base64;

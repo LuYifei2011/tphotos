@@ -34,7 +34,10 @@ class PhotosAPI {
     if (fileType != null) params['file_type'] = fileType.toString();
     if (timelineType != null) params['timeline_type'] = timelineType.toString();
     if (order != null) params['order'] = order;
-    final response = await _client.get('/v2/proxy/TerraPhotos/Timeline', params: params);
+    final response = await _client.get(
+      '/v2/proxy/TerraPhotos/Timeline',
+      params: params,
+    );
     return TimelineResponse.fromJson(response);
   }
 
@@ -60,7 +63,10 @@ class PhotosAPI {
       'timeline_type': timelineType,
       'order': order,
     };
-    final response = await _client.post('/v2/proxy/TerraPhotos/PhotoList', json: body);
+    final response = await _client.post(
+      '/v2/proxy/TerraPhotos/PhotoList',
+      json: body,
+    );
     return PhotoListResponse.fromJson(response);
   }
 
@@ -109,9 +115,6 @@ class PhotosAPI {
       }
     } while (totalLoaded < total);
 
-    return PhotoListData(
-      total: total,
-      photoList: allPhotos,
-    );
+    return PhotoListData(total: total, photoList: allPhotos);
   }
 }

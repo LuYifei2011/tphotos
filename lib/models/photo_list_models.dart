@@ -66,10 +66,7 @@ class PhotoListData {
   final int total;
   final List<PhotoItem> photoList;
 
-  PhotoListData({
-    required this.total,
-    required this.photoList,
-  });
+  PhotoListData({required this.total, required this.photoList});
 
   factory PhotoListData.fromJson(Map<String, dynamic> json) {
     return PhotoListData(

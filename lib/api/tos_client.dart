@@ -21,7 +21,12 @@ class TosClient {
 
   TosClient(this.baseUrl) : _client = http.Client();
 
-  Future<Map<String, dynamic>> get(String path, {Map<String, String>? params, Map<String, String>? headers, bool includeHeaders = false}) async {
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? params,
+    Map<String, String>? headers,
+    bool includeHeaders = false,
+  }) async {
     final url = Uri.parse('$baseUrl$path').replace(queryParameters: params);
     final response = await _client.get(url, headers: _buildHeaders(headers));
     final parsed = _handleResponse(response);
@@ -36,7 +41,12 @@ class TosClient {
     return parsed;
   }
 
-  Future<Map<String, dynamic>> post(String path, {Map<String, dynamic>? json, Map<String, String>? data, Map<String, String>? headers}) async {
+  Future<Map<String, dynamic>> post(
+    String path, {
+    Map<String, dynamic>? json,
+    Map<String, String>? data,
+    Map<String, String>? headers,
+  }) async {
     final url = Uri.parse('$baseUrl$path');
     final response = await _client.post(
       url,
@@ -47,7 +57,11 @@ class TosClient {
   }
 
   /// Fetch binary content while preserving cookies/headers.
-  Future<Uint8List> getBytes(String path, {Map<String, String>? params, Map<String, String>? headers}) async {
+  Future<Uint8List> getBytes(
+    String path, {
+    Map<String, String>? params,
+    Map<String, String>? headers,
+  }) async {
     final url = Uri.parse('$baseUrl$path').replace(queryParameters: params);
     final response = await _client.get(url, headers: _buildHeaders(headers));
     _updateCookies(response);
@@ -57,15 +71,27 @@ class TosClient {
     } else {
       try {
         final data = jsonDecode(response.body);
-        throw APIError(response.statusCode, data['msg'] ?? 'Unknown error', data['data']);
+        throw APIError(
+          response.statusCode,
+          data['msg'] ?? 'Unknown error',
+          data['data'],
+        );
       } catch (e) {
         if (e is APIError) rethrow;
-        throw APIError(response.statusCode, 'Binary response failed with status ${response.statusCode}', null);
+        throw APIError(
+          response.statusCode,
+          'Binary response failed with status ${response.statusCode}',
+          null,
+        );
       }
     }
   }
 
-  Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? json, Map<String, String>? headers}) async {
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Map<String, dynamic>? json,
+    Map<String, String>? headers,
+  }) async {
     final url = Uri.parse('$baseUrl$path');
     final response = await _client.put(
       url,
@@ -75,7 +101,11 @@ class TosClient {
     return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> delete(String path, {Map<String, dynamic>? json, Map<String, String>? headers}) async {
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, dynamic>? json,
+    Map<String, String>? headers,
+  }) async {
     final url = Uri.parse('$baseUrl$path');
     final response = await _client.delete(
       url,
@@ -88,7 +118,8 @@ class TosClient {
   Map<String, String> _buildHeaders(Map<String, String>? additionalHeaders) {
     final headers = <String, String>{
       'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       'Cookie': _cookies.entries.map((e) => '${e.key}=${e.value}').join('; '),
     };
     if (_csrfToken != null) {
@@ -120,17 +151,25 @@ class TosClient {
         return {
           'body': response.body,
           'contentType': contentType,
-          'statusCode': response.statusCode
+          'statusCode': response.statusCode,
         };
       }
     } else {
       // 错误响应：尝试解析JSON错误信息，如果失败则返回原始响应
       try {
         final data = jsonDecode(response.body);
-        throw APIError(response.statusCode, data['msg'] ?? 'Unknown error', data['data']);
+        throw APIError(
+          response.statusCode,
+          data['msg'] ?? 'Unknown error',
+          data['data'],
+        );
       } catch (e) {
         if (e is APIError) rethrow;
-        throw APIError(response.statusCode, 'Response parsing failed: ${response.body}', null);
+        throw APIError(
+          response.statusCode,
+          'Response parsing failed: ${response.body}',
+          null,
+        );
       }
     }
   }

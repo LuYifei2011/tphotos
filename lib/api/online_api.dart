@@ -10,7 +10,9 @@ class OnlineAPI {
   /// Fetch node_url from online status; returns null when cloudnas component not present.
   Future<String?> nodeUrl() async {
     // 响应头是 text/plain 需要手动解析
-    final response = jsonDecode((await _client.get('/v2/srv/online2/status'))['body']);
+    final response = jsonDecode(
+      (await _client.get('/v2/srv/online2/status'))['body'],
+    );
 
     if (response['code'] != true) {
       final codeNum = response['code_num'];

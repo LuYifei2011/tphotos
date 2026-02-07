@@ -134,10 +134,7 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: Text(usernameLabel),
           ),
           const Divider(),
-          const ListTile(
-            title: Text('默认空间'),
-            subtitle: Text('用于决定下次启动时加载的空间'),
-          ),
+          const ListTile(title: Text('默认空间'), subtitle: Text('用于决定下次启动时加载的空间')),
           RadioGroup<int>(
             groupValue: _selectedSpace,
             onChanged: (v) {

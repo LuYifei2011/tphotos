@@ -9,8 +9,7 @@ class TosAPI {
   late final PhotosAPI photos;
   late final OnlineAPI online;
 
-  TosAPI(String baseUrl)
-      : _client = TosClient(baseUrl) {
+  TosAPI(String baseUrl) : _client = TosClient(baseUrl) {
     auth = AuthAPI(_client);
     photos = PhotosAPI(_client);
     online = OnlineAPI(_client);
