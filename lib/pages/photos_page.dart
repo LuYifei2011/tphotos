@@ -1310,10 +1310,12 @@ class _PhotoViewerState extends State<PhotoViewer> {
   final FocusNode _focusNode = FocusNode();
   String? _lastSavedPath; // 仅桌面平台使用
 
-  // 简易原图缓存与去重
-  final int _memoryCapacity = 40;
-  final LinkedHashMap<String, Uint8List> _memoryCache = LinkedHashMap();
-  final Map<String, Future<Uint8List>> _inFlight = {};
+  // 简易原图缓存与去重 - 使用 static 实现跨实例共享
+  static const int _memoryCapacity = 40;
+  static final LinkedHashMap<String, Uint8List> _memoryCache = LinkedHashMap();
+  static final Map<String, Future<Uint8List>> _inFlight = {};
+  static final Map<String, Future<Uint8List>> _futureCache = {}; // 缓存 Future 对象，避免重复请求
+  static final Map<String, ImageProvider> _imageProviderCache = {}; // 缓存 ImageProvider，保留解码后的图片
   // Keyboard intents
   // 定义快捷键意图，配合 Shortcuts/Actions 使用
   // 置于 State 内仅为就近管理
@@ -1326,6 +1328,11 @@ class _PhotoViewerState extends State<PhotoViewer> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[PhotoViewer] initState - Current cache status:');
+    debugPrint('[PhotoViewer]   - Memory cache size: ${_memoryCache.length}');
+    debugPrint('[PhotoViewer]   - Future cache size: ${_futureCache.length}');
+    debugPrint('[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}');
+    debugPrint('[PhotoViewer]   - In-flight requests: ${_inFlight.length}');
     _index = widget.initialIndex.clamp(0, widget.photos.length - 1);
     _controller = PageController(initialPage: _index);
     // 初始预取
@@ -1338,47 +1345,98 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
   @override
   void dispose() {
+    debugPrint('[PhotoViewer] dispose - Cache status before dispose:');
+    debugPrint('[PhotoViewer]   - Memory cache size: ${_memoryCache.length}');
+    debugPrint('[PhotoViewer]   - Future cache size: ${_futureCache.length}');
+    debugPrint('[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}');
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   Future<Uint8List> _loadOriginal(String path) {
-    // 内存命中
-    final mem = _memoryCache.remove(path);
-    if (mem != null) {
-      _memoryCache[path] = mem; // LRU 触达
-      return Future.value(mem);
+    debugPrint('[PhotoViewer] _loadOriginal called for: $path');
+    
+    // 检查是否已有缓存的 Future
+    if (_futureCache.containsKey(path)) {
+      debugPrint('[PhotoViewer] ✓ Future cache HIT for: $path');
+      return _futureCache[path]!;
     }
-    // 去重
-    final inflight = _inFlight[path];
-    if (inflight != null) return inflight;
+    
+    debugPrint('[PhotoViewer] ✗ Future cache MISS for: $path');
+    
+    // 返回缓存的 Future 对象，避免 FutureBuilder 重复触发
+    final future = _futureCache.putIfAbsent(path, () {
+      // 内存命中
+      final mem = _memoryCache.remove(path);
+      if (mem != null) {
+        debugPrint('[PhotoViewer] ✓ Memory cache HIT for: $path (${mem.length} bytes)');
+        _memoryCache[path] = mem; // LRU 触达
+        return Future.value(mem);
+      }
+      debugPrint('[PhotoViewer] ✗ Memory cache MISS for: $path');
+      
+      // 去重
+      final inflight = _inFlight[path];
+      if (inflight != null) {
+        debugPrint('[PhotoViewer] ⚡ Request already in-flight for: $path');
+        return inflight;
+      }
 
-    final future = widget.api.photos.originalPhotoBytes(path).then((bytes) {
-      final data = Uint8List.fromList(bytes);
-      _putToMemory(path, data);
-      return data;
+      debugPrint('[PhotoViewer] 🌐 Starting NEW network request for: $path');
+      final newFuture = widget.api.photos.originalPhotoBytes(path).then((bytes) {
+        final data = Uint8List.fromList(bytes);
+        debugPrint('[PhotoViewer] ✓ Network request completed for: $path (${data.length} bytes)');
+        _putToMemory(path, data);
+        return data;
+      }).catchError((e) {
+        debugPrint('[PhotoViewer] ✗ Network request FAILED for: $path - $e');
+        throw e;
+      });
+      _inFlight[path] = newFuture;
+      return newFuture.whenComplete(() {
+        _inFlight.remove(path);
+        debugPrint('[PhotoViewer] Removed from in-flight: $path');
+      });
     });
-    _inFlight[path] = future;
-    return future.whenComplete(() => _inFlight.remove(path));
+    
+    return future;
   }
 
   void _putToMemory(String key, Uint8List bytes) {
     if (_memoryCache.containsKey(key)) _memoryCache.remove(key);
     _memoryCache[key] = bytes;
+    debugPrint('[PhotoViewer] Saved to memory cache: $key (${bytes.length} bytes, total: ${_memoryCache.length})');
     if (_memoryCache.length > _memoryCapacity) {
-      _memoryCache.remove(_memoryCache.keys.first);
+      final removed = _memoryCache.keys.first;
+      _memoryCache.remove(removed);
+      // 同时清理对应的 ImageProvider 缓存
+      _imageProviderCache.remove(removed);
+      debugPrint('[PhotoViewer] Evicted from memory cache: $removed');
     }
   }
 
   void _prefetchAround(int idx) {
+    debugPrint('[PhotoViewer] Prefetching around index: $idx');
     void prefetch(int i) {
       if (i < 0 || i >= widget.photos.length) return;
       final p = widget.photos[i];
+      debugPrint('[PhotoViewer] Prefetch index $i: ${p.path}');
+      
+      // 加载字节数据
       unawaited(
-        _loadOriginal(p.path).catchError((e, st) {
-          debugPrint('Prefetch error for ${p.path}: $e');
-          return Uint8List(0); // 返回空以满足签名
+        _loadOriginal(p.path).then((bytes) {
+          // 获取或创建 ImageProvider
+          final provider = _getOrCreateImageProvider(p.path, bytes);
+          // 预解码图片
+          debugPrint('[PhotoViewer] Precaching image for: ${p.path}');
+          return precacheImage(provider, context).then((_) {
+            debugPrint('[PhotoViewer] ✓ Precache completed for: ${p.path}');
+          }).catchError((e) {
+            debugPrint('[PhotoViewer] ✗ Precache failed for ${p.path}: $e');
+          });
+        }).catchError((e, st) {
+          debugPrint('[PhotoViewer] Prefetch error for ${p.path}: $e');
         }),
       );
     }
@@ -1386,6 +1444,26 @@ class _PhotoViewerState extends State<PhotoViewer> {
     prefetch(idx);
     prefetch(idx + 1);
     prefetch(idx - 1);
+  }
+  
+  ImageProvider _getOrCreateImageProvider(String path, Uint8List bytes) {
+    return _imageProviderCache.putIfAbsent(path, () {
+      debugPrint('[PhotoViewer] Creating ImageProvider for: $path (${bytes.length} bytes)');
+      
+      // 对大图片进行分辨率优化，按屏幕宽度缩放
+      final screenWidth = MediaQuery.of(context).size.width * MediaQuery.of(context).devicePixelRatio;
+      final maxDimension = screenWidth.toInt() * 2; // 2x 屏幕宽度
+      
+      final baseProvider = MemoryImage(bytes);
+      
+      // 如果图片大于 5MB，使用 ResizeImage 优化解码
+      if (bytes.length > 5 * 1024 * 1024) {
+        debugPrint('[PhotoViewer] Using ResizeImage for large file: $path, maxDimension=$maxDimension');
+        return ResizeImage(baseProvider, width: maxDimension, allowUpscaling: false);
+      }
+      
+      return baseProvider;
+    });
   }
 
   void _goTo(int idx) {
@@ -1459,14 +1537,74 @@ class _PhotoViewerState extends State<PhotoViewer> {
             controller: _controller,
             itemCount: widget.photos.length,
             onPageChanged: (i) {
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              debugPrint('[PhotoViewer][$timestamp] onPageChanged: $_index -> $i');
               setState(() => _index = i);
               _prefetchAround(i);
             },
             itemBuilder: (context, i) {
               final p = widget.photos[i];
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              debugPrint('[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}');
+              
+              // 检查是否有缓存的 ImageProvider（已预解码）
+              final cachedProvider = _imageProviderCache[p.path];
+              if (cachedProvider != null) {
+                debugPrint('[PhotoViewer][$timestamp] ⚡ Using cached ImageProvider (pre-decoded): ${p.path}');
+                return InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 5,
+                  child: Center(
+                    child: Image(
+                      image: cachedProvider,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                        final now = DateTime.now().millisecondsSinceEpoch;
+                        debugPrint('[PhotoViewer][$now] Image(provider) frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms');
+                        if (frame == null) {
+                          return const Center(child: CircularProgressIndicator(color: Colors.white));
+                        }
+                        return child;
+                      },
+                    ),
+                  ),
+                );
+              }
+              
+              // 同步检查内存缓存，命中则创建 ImageProvider
+              final cached = _memoryCache[p.path];
+              if (cached != null) {
+                debugPrint('[PhotoViewer][$timestamp] ⚡ SYNC display from memory cache: ${p.path} (${cached.length} bytes)');
+                final provider = _getOrCreateImageProvider(p.path, cached);
+                return InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 5,
+                  child: Center(
+                    child: Image(
+                      image: provider,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                        final now = DateTime.now().millisecondsSinceEpoch;
+                        debugPrint('[PhotoViewer][$now] Image.memory frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms');
+                        if (frame == null) {
+                          return const Center(child: CircularProgressIndicator(color: Colors.white));
+                        }
+                        return child;
+                      },
+                    ),
+                  ),
+                );
+              }
+              
+              debugPrint('[PhotoViewer][$timestamp] ✗ Memory cache MISS, using FutureBuilder');
+              // 未命中内存缓存，使用 FutureBuilder 异步加载
               return FutureBuilder<Uint8List>(
                 future: _loadOriginal(p.path),
                 builder: (context, snapshot) {
+                  final now = DateTime.now().millisecondsSinceEpoch;
+                  debugPrint('[PhotoViewer][$now] FutureBuilder state: ${snapshot.connectionState}, hasData=${snapshot.hasData}, hasError=${snapshot.hasError}');
                   if (snapshot.connectionState != ConnectionState.done) {
                     return const Center(child: CircularProgressIndicator(color: Colors.white));
                   }
@@ -1484,10 +1622,26 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       ),
                     );
                   }
+                  debugPrint('[PhotoViewer][$now] FutureBuilder returning InteractiveViewer with ImageProvider');
+                  final provider = _getOrCreateImageProvider(p.path, snapshot.data!);
                   return InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 5,
-                    child: Center(child: Image.memory(snapshot.data!, fit: BoxFit.contain)),
+                    child: Center(
+                      child: Image(
+                        image: provider,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                          final frameTime = DateTime.now().millisecondsSinceEpoch;
+                          debugPrint('[PhotoViewer][$frameTime] FutureBuilder Image frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${frameTime - timestamp}ms');
+                          if (frame == null) {
+                            return const Center(child: CircularProgressIndicator(color: Colors.white));
+                          }
+                          return child;
+                        },
+                      ),
+                    ),
                   );
                 },
               );
