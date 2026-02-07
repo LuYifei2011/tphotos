@@ -391,10 +391,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _refreshDdnsUrl(
-    TosAPI api,
-    SharedPreferences prefs,
-  ) async {
+  Future<void> _refreshDdnsUrl(TosAPI api, SharedPreferences prefs) async {
     try {
       final url = await api.ddns.ddnsUrl();
       if (url != null && url.isNotEmpty) {

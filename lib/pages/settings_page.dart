@@ -144,8 +144,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final ddnsLabel = (_savedDdnsServer != null && _savedDdnsServer!.isNotEmpty)
         ? _savedDdnsServer!
         : '未保存';
-    final tnasOnlineLabel = (_savedTnasOnlineServer != null &&
-            _savedTnasOnlineServer!.isNotEmpty)
+    final tnasOnlineLabel =
+        (_savedTnasOnlineServer != null && _savedTnasOnlineServer!.isNotEmpty)
         ? _savedTnasOnlineServer!
         : '未保存';
     return Scaffold(
