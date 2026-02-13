@@ -60,6 +60,8 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   Future<TosAPI?>? _initial;
   ThemeMode _themeMode = ThemeMode.system;
+  final ValueNotifier<String> _autoLoginStatus = ValueNotifier<String>('准备自动登录...');
+  Completer<bool>? _cancelCompleter;
 
   @override
   void initState() {
@@ -70,7 +72,16 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     _applySystemUiOverlay(_themeMode);
   }
 
+  void _cancelAutoLogin() {
+    if (_cancelCompleter != null && !_cancelCompleter!.isCompleted) {
+      _cancelCompleter!.complete(true);
+      _autoLoginStatus.value = '已取消自动登录';
+    }
+  }
+
   Future<TosAPI?> _decideInitialPage() async {
+    _cancelCompleter = Completer<bool>();
+    
     final prefs = await SharedPreferences.getInstance();
     final savedServer = prefs.getString('server');
     final savedUser = prefs.getString('username');
@@ -82,6 +93,10 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     if (savedServer != null && savedServer.isNotEmpty) {
       TosAPI? api;
       Object? primaryError;
+      
+      _autoLoginStatus.value = '正在尝试连接: $savedServer';
+      if (_cancelCompleter!.isCompleted) return null;
+      
       try {
         api = await _autoLoginWithBase(
           baseUrl: savedServer,
@@ -94,7 +109,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         primaryError = e;
       }
 
+      if (_cancelCompleter!.isCompleted) return null;
       if (api != null) {
+        _autoLoginStatus.value = '登录成功！';
         return api;
       }
 
@@ -105,6 +122,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           ddnsServer != null &&
           ddnsServer.isNotEmpty &&
           ddnsServer != savedServer) {
+        _autoLoginStatus.value = '正在尝试 DDNS 地址: $ddnsServer';
+        if (_cancelCompleter!.isCompleted) return null;
+        
         try {
           final ddnsApi = await _autoLoginWithBase(
             baseUrl: ddnsServer,
@@ -113,7 +133,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             password: savedPass,
             remember: remember,
           );
+          if (_cancelCompleter!.isCompleted) return null;
           if (ddnsApi != null) {
+            _autoLoginStatus.value = '登录成功！';
             return ddnsApi;
           }
         } catch (_) {}
@@ -126,6 +148,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           canUseFallback;
 
       if (shouldTryTnasOnlineFallback) {
+        _autoLoginStatus.value = '正在尝试 TNAS.online 地址: $tnasOnlineServer';
+        if (_cancelCompleter!.isCompleted) return null;
+        
         try {
           final fallbackApi = await _autoLoginWithBase(
             baseUrl: tnasOnlineServer,
@@ -134,7 +159,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             password: savedPass,
             remember: remember,
           );
+          if (_cancelCompleter!.isCompleted) return null;
           if (fallbackApi != null) {
+            _autoLoginStatus.value = '登录成功！';
             return fallbackApi;
           }
         } catch (_) {}
@@ -148,6 +175,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _autoLoginStatus.dispose();
     super.dispose();
   }
 
@@ -293,8 +321,11 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             future: _initial,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+                return _AutoLoginScreen(
+                  statusNotifier: _autoLoginStatus,
+                  onCancel: _cancelAutoLogin,
+                  themeMode: _themeMode,
+                  onToggleTheme: _toggleThemeMode,
                 );
               }
               final api = snapshot.data;
@@ -400,5 +431,86 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     } catch (_) {
       // 忽略 DDNS 地址刷新失败
     }
+  }
+}
+
+/// 自动登录状态显示页面
+class _AutoLoginScreen extends StatelessWidget {
+  final ValueNotifier<String> statusNotifier;
+  final VoidCallback onCancel;
+  final ThemeMode? themeMode;
+  final VoidCallback? onToggleTheme;
+
+  const _AutoLoginScreen({
+    required this.statusNotifier,
+    required this.onCancel,
+    this.themeMode,
+    this.onToggleTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('自动登录中'),
+        actions: [
+          if (onToggleTheme != null)
+            IconButton(
+              tooltip: _themeTooltip(themeMode ?? ThemeMode.system),
+              onPressed: onToggleTheme,
+              icon: Icon(_themeIcon(themeMode ?? ThemeMode.system)),
+            ),
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 24),
+              ValueListenableBuilder<String>(
+                valueListenable: statusNotifier,
+                builder: (context, status, _) {
+                  return Text(
+                    status,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                    textAlign: TextAlign.center,
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+              OutlinedButton(
+                onPressed: onCancel,
+                child: const Text('取消'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+IconData _themeIcon(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return Icons.light_mode;
+    case ThemeMode.dark:
+      return Icons.dark_mode;
+    case ThemeMode.system:
+      return Icons.brightness_auto;
+  }
+}
+
+String _themeTooltip(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return '浅色模式（点按切换）';
+    case ThemeMode.dark:
+      return '深色模式（点按切换）';
+    case ThemeMode.system:
+      return '跟随系统（点按切换）';
   }
 }
