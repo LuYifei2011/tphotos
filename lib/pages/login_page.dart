@@ -197,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
       buffer.write(_describeError(ddnsError));
     }
     if (tnasOnlineServer != null && onlineError != null) {
-      buffer.write('\n使用 TNAS Online 地址($tnasOnlineServer) 时失败: ');
+      buffer.write('\n使用 TNAS.online 地址($tnasOnlineServer) 时失败: ');
       buffer.write(_describeError(onlineError));
     }
     setState(() => _error = '登录失败: $buffer');
@@ -213,7 +213,7 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString('tnas_online_url', url);
       }
     } catch (_) {
-      // Ignore failures when fetching TNAS Online URL; login already succeeded.
+      // Ignore failures when fetching TNAS.online URL; login already succeeded.
     }
   }
 
