@@ -538,9 +538,9 @@ class _PhotosPageState extends State<PhotosPage> {
         _photoThumbFraction = 0.0;
         _showPhotoScrollLabel = false;
         _headerKeys.clear();
-        if (res.data.isNotEmpty && res.data.first is TimelineItem) {
+        if (res.data.isNotEmpty) {
           _currentPhotoGroupLabel = _formatDateLabel(
-            res.data.first as TimelineItem,
+            res.data.first,
           );
         } else {
           _currentPhotoGroupLabel = null;
@@ -646,7 +646,7 @@ class _PhotosPageState extends State<PhotosPage> {
     final maxExtent = notification.metrics.maxScrollExtent;
     final nextFraction = maxExtent <= 0
         ? 0.0
-        : (notification.metrics.pixels / maxExtent).clamp(0.0, 1.0) as double;
+        : (notification.metrics.pixels / maxExtent).clamp(0.0, 1.0);
     if ((nextFraction - _photoThumbFraction).abs() > 0.001) {
       setState(() => _photoThumbFraction = nextFraction);
     }
@@ -676,7 +676,6 @@ class _PhotosPageState extends State<PhotosPage> {
       final render = ctx.findRenderObject();
       if (render == null) continue;
       final viewport = RenderAbstractViewport.of(render);
-      if (viewport == null) continue;
       final offsetToReveal = viewport.getOffsetToReveal(render, 0).offset;
       if (offsetToReveal <= metrics.pixels + 1.0 &&
           offsetToReveal > bestOffset) {
@@ -774,7 +773,7 @@ class _PhotosPageState extends State<PhotosPage> {
                         : null,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.82),
+                        color: Colors.black.withValues(alpha: 0.82),
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: const [
                           BoxShadow(
