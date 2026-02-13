@@ -539,9 +539,7 @@ class _PhotosPageState extends State<PhotosPage> {
         _showPhotoScrollLabel = false;
         _headerKeys.clear();
         if (res.data.isNotEmpty) {
-          _currentPhotoGroupLabel = _formatDateLabel(
-            res.data.first,
-          );
+          _currentPhotoGroupLabel = _formatDateLabel(res.data.first);
         } else {
           _currentPhotoGroupLabel = null;
         }
