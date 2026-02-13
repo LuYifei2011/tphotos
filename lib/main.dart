@@ -60,7 +60,9 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   Future<TosAPI?>? _initial;
   ThemeMode _themeMode = ThemeMode.system;
-  final ValueNotifier<String> _autoLoginStatus = ValueNotifier<String>('准备自动登录...');
+  final ValueNotifier<String> _autoLoginStatus = ValueNotifier<String>(
+    '准备自动登录...',
+  );
   Completer<bool>? _cancelCompleter;
 
   @override
@@ -81,7 +83,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
   Future<TosAPI?> _decideInitialPage() async {
     _cancelCompleter = Completer<bool>();
-    
+
     final prefs = await SharedPreferences.getInstance();
     final savedServer = prefs.getString('server');
     final savedUser = prefs.getString('username');
@@ -93,10 +95,10 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     if (savedServer != null && savedServer.isNotEmpty) {
       TosAPI? api;
       Object? primaryError;
-      
+
       _autoLoginStatus.value = '正在尝试连接: $savedServer';
       if (_cancelCompleter!.isCompleted) return null;
-      
+
       try {
         api = await _autoLoginWithBase(
           baseUrl: savedServer,
@@ -124,7 +126,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           ddnsServer != savedServer) {
         _autoLoginStatus.value = '正在尝试 DDNS 地址: $ddnsServer';
         if (_cancelCompleter!.isCompleted) return null;
-        
+
         try {
           final ddnsApi = await _autoLoginWithBase(
             baseUrl: ddnsServer,
@@ -150,7 +152,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       if (shouldTryTnasOnlineFallback) {
         _autoLoginStatus.value = '正在尝试 TNAS.online 地址: $tnasOnlineServer';
         if (_cancelCompleter!.isCompleted) return null;
-        
+
         try {
           final fallbackApi = await _autoLoginWithBase(
             baseUrl: tnasOnlineServer,
@@ -481,10 +483,7 @@ class _AutoLoginScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 32),
-              OutlinedButton(
-                onPressed: onCancel,
-                child: const Text('取消'),
-              ),
+              OutlinedButton(onPressed: onCancel, child: const Text('取消')),
             ],
           ),
         ),
