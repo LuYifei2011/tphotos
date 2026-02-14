@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
-import '../../models/photo_list_models.dart';
+import '../models/photo_list_models.dart';
 
 class PhotoGrid extends StatelessWidget {
   final List<PhotoItem> items;

@@ -19,7 +19,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../api/tos_api.dart';
 import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
-import 'photos/photo_grid.dart';
+import '../widgets/photo_grid.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
 
