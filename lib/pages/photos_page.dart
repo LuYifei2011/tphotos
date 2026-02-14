@@ -705,54 +705,54 @@ class _PhotosPageState extends State<PhotosPage> {
               tooltip: '切换空间',
               icon: Icon(_space == 1 ? Icons.person : Icons.people),
               onSelected: _onSpaceChanged,
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem<int>(
-                value: 1,
-                checked: _space == 1,
-                child: const Text('个人空间'),
-              ),
-              CheckedPopupMenuItem<int>(
-                value: 2,
-                checked: _space == 2,
-                child: const Text('公共空间'),
+              itemBuilder: (context) => [
+                CheckedPopupMenuItem<int>(
+                  value: 1,
+                  checked: _space == 1,
+                  child: const Text('个人空间'),
+                ),
+                CheckedPopupMenuItem<int>(
+                  value: 2,
+                  checked: _space == 2,
+                  child: const Text('公共空间'),
+                ),
+              ],
+            ),
+            IconButton(
+              tooltip: _themeTooltip(widget.themeMode),
+              onPressed: widget.onToggleTheme,
+              icon: Icon(_themeIcon(widget.themeMode)),
+            ),
+            IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
+          ],
+        ),
+        drawer: Drawer(
+          child: ListView(
+            padding: const EdgeInsets.only(top: 48),
+            children: [
+              _menuTile('照片', Icons.photo, HomeSection.photos),
+              _menuTile('视频', Icons.videocam, HomeSection.videos),
+              _menuTile('相册', Icons.photo_album, HomeSection.albums),
+              _menuTile('文件夹', Icons.folder, HomeSection.folders),
+              _menuTile('人物', Icons.people, HomeSection.people),
+              _menuTile('场景', Icons.landscape, HomeSection.scenes),
+              _menuTile('地点', Icons.place, HomeSection.places),
+              _menuTile('最近添加', Icons.fiber_new, HomeSection.recent),
+              _menuTile('收藏', Icons.favorite, HomeSection.favorites),
+              _menuTile('分享', Icons.share, HomeSection.shares),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('设置'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openSettings();
+                },
               ),
             ],
           ),
-          IconButton(
-            tooltip: _themeTooltip(widget.themeMode),
-            onPressed: widget.onToggleTheme,
-            icon: Icon(_themeIcon(widget.themeMode)),
-          ),
-          IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: const EdgeInsets.only(top: 48),
-          children: [
-            _menuTile('照片', Icons.photo, HomeSection.photos),
-            _menuTile('视频', Icons.videocam, HomeSection.videos),
-            _menuTile('相册', Icons.photo_album, HomeSection.albums),
-            _menuTile('文件夹', Icons.folder, HomeSection.folders),
-            _menuTile('人物', Icons.people, HomeSection.people),
-            _menuTile('场景', Icons.landscape, HomeSection.scenes),
-            _menuTile('地点', Icons.place, HomeSection.places),
-            _menuTile('最近添加', Icons.fiber_new, HomeSection.recent),
-            _menuTile('收藏', Icons.favorite, HomeSection.favorites),
-            _menuTile('分享', Icons.share, HomeSection.shares),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('设置'),
-              onTap: () {
-                Navigator.pop(context);
-                _openSettings();
-              },
-            ),
-          ],
         ),
-      ),
-      body: _buildBody(),
+        body: _buildBody(),
       ),
     );
   }
