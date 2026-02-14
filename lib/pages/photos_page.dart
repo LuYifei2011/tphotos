@@ -683,14 +683,29 @@ class _PhotosPageState extends State<PhotosPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_titleForSection(_section)),
-        actions: [
-          PopupMenuButton<int>(
-            tooltip: '切换空间',
-            icon: Icon(_space == 1 ? Icons.person : Icons.people),
-            onSelected: _onSpaceChanged,
+    return PopScope(
+      canPop: _section == HomeSection.photos,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _section != HomeSection.photos) {
+          setState(() {
+            _section = HomeSection.photos;
+            _photoScroll.showLabel = false;
+            _videoScroll.showLabel = false;
+          });
+          // 如果照片列表为空，重新加载
+          if (_photos.isEmpty) {
+            _load();
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_titleForSection(_section)),
+          actions: [
+            PopupMenuButton<int>(
+              tooltip: '切换空间',
+              icon: Icon(_space == 1 ? Icons.person : Icons.people),
+              onSelected: _onSpaceChanged,
             itemBuilder: (context) => [
               CheckedPopupMenuItem<int>(
                 value: 1,
@@ -739,6 +754,7 @@ class _PhotosPageState extends State<PhotosPage> {
         ),
       ),
       body: _buildBody(),
+      ),
     );
   }
 
