@@ -25,7 +25,6 @@ import '../widgets/photo_grid.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
 
-
 // 主页各栏目
 enum HomeSection {
   photos,
@@ -612,7 +611,7 @@ class _PhotosPageState extends State<PhotosPage> {
 
       final data = await future;
       if (!mounted) return;
-      
+
       setState(() {
         state.cacheItems(data, data.photoList);
       });
@@ -876,7 +875,7 @@ class _PhotosPageState extends State<PhotosPage> {
       if (_videoLoading)
         return const Center(child: CircularProgressIndicator());
       if (_videoError != null) return Center(child: Text(_videoError!));
-      
+
       final scrollChild = _videos.isEmpty
           ? ListView(
               controller: _videoScroll.controller,
@@ -934,7 +933,7 @@ class _PhotosPageState extends State<PhotosPage> {
   }
 
   // ---------------- 通用滚动处理方法 ----------------
-  
+
   bool _handleScrollNotification(
     ScrollNotification notification,
     _TimelineScrollContext context,
@@ -1027,8 +1026,7 @@ class _PhotosPageState extends State<PhotosPage> {
     final alignmentY = (scrollContext.thumbFraction.clamp(0.0, 1.0) * 2) - 1;
     final media = MediaQuery.of(context);
     final insetTop = 5.0;
-    final insetBottom =
-        media.viewPadding.bottom + (_isMobile ? 6.0 : 5.0);
+    final insetBottom = media.viewPadding.bottom + (_isMobile ? 6.0 : 5.0);
     return Positioned.fill(
       child: Padding(
         padding: EdgeInsets.only(top: insetTop, bottom: insetBottom),
@@ -1138,10 +1136,7 @@ class _PhotosPageState extends State<PhotosPage> {
   // 构建每个日期对应的 sliver 片段（header + grid/loader）
   List<Widget> _buildDateSlivers(TimelineItem item) {
     final key = item.timestamp;
-    final state = _photoSections.putIfAbsent(
-      key,
-      () => DateSectionState(key),
-    );
+    final state = _photoSections.putIfAbsent(key, () => DateSectionState(key));
     final dateLabel = _formatDateLabel(item);
 
     // header: 使用 VisibilityDetector 在可见时触发 fetch
@@ -1328,10 +1323,7 @@ class _PhotosPageState extends State<PhotosPage> {
 
   List<Widget> _buildVideoDateSlivers(TimelineItem item) {
     final key = item.timestamp;
-    final state = _videoSections.putIfAbsent(
-      key,
-      () => DateSectionState(key),
-    );
+    final state = _videoSections.putIfAbsent(key, () => DateSectionState(key));
     final dateLabel = _formatDateLabel(item);
 
     final header = SliverToBoxAdapter(
@@ -1852,13 +1844,10 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
   Future<Uint8List> _loadOriginal(String path) {
     debugPrint('[PhotoViewer] _loadOriginal called for: $path');
-    return _cacheManager.load(
-      path,
-      () async {
-        final bytes = await widget.api.photos.originalPhotoBytes(path);
-        return Uint8List.fromList(bytes);
-      },
-    );
+    return _cacheManager.load(path, () async {
+      final bytes = await widget.api.photos.originalPhotoBytes(path);
+      return Uint8List.fromList(bytes);
+    });
   }
 
   void _prefetchAround(int idx) {

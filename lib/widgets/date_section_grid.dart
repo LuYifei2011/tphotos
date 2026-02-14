@@ -75,10 +75,7 @@ class DateSectionGrid {
     // 内容部分（根据加载状态显示不同的 sliver）
     if (!state.hasStarted) {
       // 未开始：返回占位符
-      return [
-        header,
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ];
+      return [header, const SliverToBoxAdapter(child: SizedBox(height: 100))];
     }
 
     final items = state.items;
@@ -87,13 +84,12 @@ class DateSectionGrid {
       final placeholderCount = placeholderCountCalc != null
           ? placeholderCountCalc!(state.itemCount)
           : state.itemCount;
-      final placeholders =
-          _createPlaceholderItems(placeholderCount, item.timestamp);
+      final placeholders = _createPlaceholderItems(
+        placeholderCount,
+        item.timestamp,
+      );
 
-      return [
-        header,
-        buildGrid(placeholders),
-      ];
+      return [header, buildGrid(placeholders)];
     }
 
     if (items.isEmpty) {
@@ -110,10 +106,7 @@ class DateSectionGrid {
     }
 
     // 有 items：显示网格
-    return [
-      header,
-      buildGrid(items),
-    ];
+    return [header, buildGrid(items)];
   }
 
   /// 创建占位符 PhotoItem 列表
