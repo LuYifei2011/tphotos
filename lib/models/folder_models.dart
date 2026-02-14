@@ -19,11 +19,7 @@ class FolderPermission {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'view': view,
-      'upload': upload,
-      'manage': manage,
-    };
+    return {'view': view, 'upload': upload, 'manage': manage};
   }
 }
 
@@ -32,10 +28,7 @@ class FolderThumbnail {
   final String path;
   final String thumbnailPath;
 
-  FolderThumbnail({
-    required this.path,
-    required this.thumbnailPath,
-  });
+  FolderThumbnail({required this.path, required this.thumbnailPath});
 
   factory FolderThumbnail.fromJson(Map<String, dynamic> json) {
     return FolderThumbnail(
@@ -45,10 +38,7 @@ class FolderThumbnail {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'path': path,
-      'thumbnail_path': thumbnailPath,
-    };
+    return {'path': path, 'thumbnail_path': thumbnailPath};
   }
 }
 
@@ -57,19 +47,18 @@ class FolderAdditional {
   final List<FolderThumbnail> thumbnail;
   final FolderPermission permission;
 
-  FolderAdditional({
-    required this.thumbnail,
-    required this.permission,
-  });
+  FolderAdditional({required this.thumbnail, required this.permission});
 
   factory FolderAdditional.fromJson(Map<String, dynamic> json) {
     return FolderAdditional(
-      thumbnail: (json['thumbnail'] as List<dynamic>?)
+      thumbnail:
+          (json['thumbnail'] as List<dynamic>?)
               ?.map((e) => FolderThumbnail.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       permission: FolderPermission.fromJson(
-          json['permission'] as Map<String, dynamic>? ?? {}),
+        json['permission'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
 
@@ -98,7 +87,8 @@ class FolderInfo {
   factory FolderInfo.fromJson(Map<String, dynamic> json) {
     return FolderInfo(
       additional: FolderAdditional.fromJson(
-          json['additional'] as Map<String, dynamic>? ?? {}),
+        json['additional'] as Map<String, dynamic>? ?? {},
+      ),
       showFolder: json['show_folder'] as String? ?? '',
       relativelyPath: json['relatively_path'] as String? ?? '',
       searchPhotoDir: json['search_photo_dir'] as String? ?? '',
@@ -129,14 +119,12 @@ class FolderModeData {
   final List<FolderInfo> photoDirInfo;
   final int total;
 
-  FolderModeData({
-    required this.photoDirInfo,
-    required this.total,
-  });
+  FolderModeData({required this.photoDirInfo, required this.total});
 
   factory FolderModeData.fromJson(Map<String, dynamic> json) {
     return FolderModeData(
-      photoDirInfo: (json['photo_dir_info'] as List<dynamic>?)
+      photoDirInfo:
+          (json['photo_dir_info'] as List<dynamic>?)
               ?.map((e) => FolderInfo.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -178,7 +166,8 @@ class FolderModeResponse {
       code: json['code'] as bool? ?? false,
       msg: json['msg'] as String? ?? '',
       data: FolderModeData.fromJson(
-          json['data'] as Map<String, dynamic>? ?? {}),
+        json['data'] as Map<String, dynamic>? ?? {},
+      ),
       time: (json['time'] as num?)?.toDouble() ?? 0.0,
       codeNum: json['code_num'] as int? ?? 0,
       codeMsg: json['code_msg'] as String? ?? '',

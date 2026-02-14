@@ -278,7 +278,9 @@ class _LoginPageState extends State<LoginPage> {
                       labelText: '密码',
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _showPassword ? Icons.visibility : Icons.visibility_off,
+                          _showPassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                         ),
                         onPressed: () =>
                             setState(() => _showPassword = !_showPassword),

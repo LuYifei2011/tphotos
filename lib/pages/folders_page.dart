@@ -11,16 +11,14 @@ class _FolderContentCache {
   final List<PhotoItem> photos;
   final DateTime cachedAt;
 
-  _FolderContentCache({
-    required this.folders,
-    required this.photos,
-  }) : cachedAt = DateTime.now();
+  _FolderContentCache({required this.folders, required this.photos})
+    : cachedAt = DateTime.now();
 }
 
 /// 文件夹页面
 class FoldersPage extends StatefulWidget {
   final TosAPI api;
-  
+
   const FoldersPage({Key? key, required this.api}) : super(key: key);
 
   @override
@@ -29,23 +27,25 @@ class FoldersPage extends StatefulWidget {
 
 class _FoldersPageState extends State<FoldersPage> {
   List<FolderInfo> _folders = [];
-  List<PhotoItem> _photos = [];  // 当前文件夹下的照片
+  List<PhotoItem> _photos = []; // 当前文件夹下的照片
   bool _isLoading = true;
   String? _errorMessage;
-  
+
   // 缩略图缓存（文件夹和照片共用）
   final Map<String, Uint8List> _thumbnailCache = {};
-  
+
   // 文件夹内容缓存（按路径存储）
   final Map<String, _FolderContentCache> _folderContentCache = {};
-  
+
   // 当前文件夹路径（用于支持子文件夹导航）
   String _currentFolderPath = '/';
-  String _currentRelativePath = '';  // 当前的相对路径（用于显示）
-  
+  String _currentRelativePath = ''; // 当前的相对路径（用于显示）
+
   // 面包屑导航历史（存储搜索路径和相对路径）
-  final List<Map<String, String>> _pathHistory = [{'search': '/', 'relative': ''}];
-  
+  final List<Map<String, String>> _pathHistory = [
+    {'search': '/', 'relative': ''},
+  ];
+
   // 请求版本号，用于忽略过时的响应
   int _loadVersion = 0;
 
@@ -60,7 +60,7 @@ class _FoldersPageState extends State<FoldersPage> {
     if (forceRefresh) {
       _clearCache(_currentFolderPath);
     }
-    
+
     // 检查缓存
     if (!forceRefresh && _folderContentCache.containsKey(_currentFolderPath)) {
       final cached = _folderContentCache[_currentFolderPath]!;
@@ -74,10 +74,10 @@ class _FoldersPageState extends State<FoldersPage> {
       _preloadThumbnails();
       return;
     }
-    
+
     // 递增版本号，标记新请求
     final currentVersion = ++_loadVersion;
-    
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -113,24 +113,24 @@ class _FoldersPageState extends State<FoldersPage> {
       if (folderResponse.code && photoResponse.code) {
         final folders = folderResponse.data.photoDirInfo;
         final photos = photoResponse.data.photoList;
-        
+
         // 缓存结果
         _folderContentCache[_currentFolderPath] = _FolderContentCache(
           folders: folders,
           photos: photos,
         );
-        
+
         setState(() {
           _folders = folders;
           _photos = photos;
           _isLoading = false;
         });
-        
+
         // 预加载缩略图
         _preloadThumbnails();
       } else {
         setState(() {
-          _errorMessage = folderResponse.msg.isEmpty 
+          _errorMessage = folderResponse.msg.isEmpty
               ? (photoResponse.msg.isEmpty ? '加载失败' : photoResponse.msg)
               : folderResponse.msg;
           _isLoading = false;
@@ -141,7 +141,7 @@ class _FoldersPageState extends State<FoldersPage> {
       if (!mounted || currentVersion != _loadVersion) {
         return; // 忽略过时响应
       }
-      
+
       setState(() {
         _errorMessage = '加载失败: $e';
         _isLoading = false;
@@ -160,7 +160,9 @@ class _FoldersPageState extends State<FoldersPage> {
           final thumbnailPath = thumb.thumbnailPath;
           if (!_thumbnailCache.containsKey(thumbnailPath)) {
             try {
-              final bytes = await widget.api.photos.thumbnailBytes(thumbnailPath);
+              final bytes = await widget.api.photos.thumbnailBytes(
+                thumbnailPath,
+              );
               if (mounted) {
                 setState(() {
                   _thumbnailCache[thumbnailPath] = Uint8List.fromList(bytes);
@@ -174,7 +176,7 @@ class _FoldersPageState extends State<FoldersPage> {
         }
       }
     }
-    
+
     // 预加载照片缩略图（前20张）
     final photosToPreload = _photos.take(20);
     for (final photo in photosToPreload) {
@@ -264,12 +266,8 @@ class _FoldersPageState extends State<FoldersPage> {
         children: [
           // 面包屑导航
           _buildBreadcrumb(),
-          
-          const Expanded(
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
-          ),
+
+          const Expanded(child: Center(child: CircularProgressIndicator())),
         ],
       );
     }
@@ -281,7 +279,7 @@ class _FoldersPageState extends State<FoldersPage> {
           children: [
             // 面包屑导航
             _buildBreadcrumb(),
-            
+
             Expanded(
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -294,7 +292,9 @@ class _FoldersPageState extends State<FoldersPage> {
                         Icon(
                           Icons.error_outline,
                           size: 64,
-                          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.error.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -325,7 +325,7 @@ class _FoldersPageState extends State<FoldersPage> {
           children: [
             // 面包屑导航
             _buildBreadcrumb(),
-            
+
             Expanded(
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -338,13 +338,12 @@ class _FoldersPageState extends State<FoldersPage> {
                         Icon(
                           Icons.folder_open,
                           size: 64,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.3),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
-                          '暂无内容',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        const Text('暂无内容', style: TextStyle(fontSize: 16)),
                       ],
                     ),
                   ),
@@ -362,7 +361,7 @@ class _FoldersPageState extends State<FoldersPage> {
         children: [
           // 面包屑导航（始终显示）
           _buildBreadcrumb(),
-          
+
           // 混合内容（文件夹 + 照片）
           Expanded(
             child: CustomScrollView(
@@ -385,12 +384,13 @@ class _FoldersPageState extends State<FoldersPage> {
                   SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 0.68,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 0.68,
+                          ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _buildFolderTile(_folders[index]),
                         childCount: _folders.length,
@@ -398,7 +398,7 @@ class _FoldersPageState extends State<FoldersPage> {
                     ),
                   ),
                 ],
-                
+
                 // 照片网格
                 if (_photos.isNotEmpty) ...[
                   SliverPadding(
@@ -417,12 +417,13 @@ class _FoldersPageState extends State<FoldersPage> {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        mainAxisSpacing: 4,
-                        crossAxisSpacing: 4,
-                        childAspectRatio: 1.0,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                            childAspectRatio: 1.0,
+                          ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _buildPhotoTile(_photos[index]),
                         childCount: _photos.length,
@@ -441,21 +442,19 @@ class _FoldersPageState extends State<FoldersPage> {
   /// 构建面包屑导航
   Widget _buildBreadcrumb() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     // 将相对路径分割成段
-    final pathSegments = _currentRelativePath.isEmpty 
-        ? <String>[] 
+    final pathSegments = _currentRelativePath.isEmpty
+        ? <String>[]
         : _currentRelativePath.split('/');
-    
+
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[900] : Colors.grey[100],
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor,
-          ),
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
         ),
       ),
       child: ListView(
@@ -469,7 +468,7 @@ class _FoldersPageState extends State<FoldersPage> {
               iconSize: 20,
               padding: const EdgeInsets.all(8),
             ),
-          
+
           // 根目录/全部
           _buildBreadcrumbItem(
             label: '全部',
@@ -477,7 +476,7 @@ class _FoldersPageState extends State<FoldersPage> {
             onTap: () => _navigateToLevel(0),
             isFirst: true,
           ),
-          
+
           // 各级路径段
           for (int i = 0; i < pathSegments.length; i++) ...[
             _buildBreadcrumbSeparator(),
@@ -490,7 +489,7 @@ class _FoldersPageState extends State<FoldersPage> {
       ),
     );
   }
-  
+
   /// 构建面包屑项
   Widget _buildBreadcrumbItem({
     required String label,
@@ -519,9 +518,7 @@ class _FoldersPageState extends State<FoldersPage> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: isFirst ? FontWeight.w600 : FontWeight.normal,
-                color: isFirst 
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
+                color: isFirst ? Theme.of(context).colorScheme.primary : null,
               ),
             ),
           ],
@@ -529,7 +526,7 @@ class _FoldersPageState extends State<FoldersPage> {
       ),
     );
   }
-  
+
   /// 构建面包屑分隔符
   Widget _buildBreadcrumbSeparator() {
     return Padding(
@@ -553,9 +550,9 @@ class _FoldersPageState extends State<FoldersPage> {
         children: [
           // 缩略图或默认图标
           _buildFolderThumbnail(folder),
-          
+
           const SizedBox(height: 8),
-          
+
           // 标题
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -585,7 +582,7 @@ class _FoldersPageState extends State<FoldersPage> {
 
     if (folder.hasThumbnail) {
       final thumbnails = folder.additional.thumbnail.take(4).toList();
-      
+
       if (thumbnails.length == 1) {
         // 单个缩略图，全屏显示
         content = _buildSingleThumbnail(thumbnails[0].thumbnailPath, size);
@@ -630,7 +627,10 @@ class _FoldersPageState extends State<FoldersPage> {
   }
 
   /// 构建多个缩略图（2x2网格）
-  Widget _buildMultipleThumbnails(List<FolderThumbnail> thumbnails, double size) {
+  Widget _buildMultipleThumbnails(
+    List<FolderThumbnail> thumbnails,
+    double size,
+  ) {
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -659,7 +659,9 @@ class _FoldersPageState extends State<FoldersPage> {
                 height: 16,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.3),
                 ),
               ),
             );
@@ -726,7 +728,9 @@ class _FoldersPageState extends State<FoldersPage> {
                   return Center(
                     child: Icon(
                       Icons.broken_image,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.3),
                     ),
                   );
                 },
@@ -742,7 +746,9 @@ class _FoldersPageState extends State<FoldersPage> {
                         return Center(
                           child: Icon(
                             Icons.broken_image,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.3),
                           ),
                         );
                       },
@@ -751,7 +757,9 @@ class _FoldersPageState extends State<FoldersPage> {
                     return Center(
                       child: Icon(
                         Icons.error_outline,
-                        color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withValues(alpha: 0.5),
                       ),
                     );
                   } else {
@@ -761,7 +769,9 @@ class _FoldersPageState extends State<FoldersPage> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.3),
                         ),
                       ),
                     );

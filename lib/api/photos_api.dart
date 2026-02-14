@@ -120,7 +120,7 @@ class PhotosAPI {
   }
 
   /// 获取文件夹列表
-  /// 
+  ///
   /// [folderName] 文件夹名称，根目录为 "/"
   /// [space] 空间 ID
   /// [sortType] 排序类型（1: 按名称，2: 按时间等）
@@ -145,7 +145,7 @@ class PhotosAPI {
   }
 
   /// 获取文件夹内的照片列表
-  /// 
+  ///
   /// [space] 空间 ID
   /// [searchFolder] 搜索文件夹路径
   /// [sortType] 排序类型
@@ -162,7 +162,7 @@ class PhotosAPI {
   }) async {
     final body = <String, dynamic>{
       'space': space,
-      'list_type': 2,  // 2 表示按文件夹搜索
+      'list_type': 2, // 2 表示按文件夹搜索
       'search_folder': searchFolder,
       'sort_type': sortType,
       'sort_direction': sortDirection,

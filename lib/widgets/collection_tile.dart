@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 
 /// 集合类型枚举
 enum CollectionType {
-  album,   // 相册
-  folder,  // 文件夹
-  people,  // 人物
-  scene,   // 场景
-  place,   // 地点
+  album, // 相册
+  folder, // 文件夹
+  people, // 人物
+  scene, // 场景
+  place, // 地点
 }
 
 /// 集合形状枚举
 enum CollectionShape {
-  square,  // 方形（带圆角）
-  circle,  // 圆形
+  square, // 方形（带圆角）
+  circle, // 圆形
 }
 
 /// 集合数据模型
@@ -47,7 +47,7 @@ class CollectionItem {
   /// 获取默认图标（根据类型）
   IconData getDefaultIcon() {
     if (defaultIcon != null) return defaultIcon!;
-    
+
     switch (type) {
       case CollectionType.album:
         return Icons.photo_library;
@@ -116,12 +116,12 @@ class CollectionTile extends StatelessWidget {
           children: [
             // 缩略图或默认图标
             _buildThumbnail(),
-            
+
             const SizedBox(height: 8.0),
-            
+
             // 标题
             _buildTitle(context),
-            
+
             // 数量（可选）
             if (showCount && item.itemCount != null) ...[
               const SizedBox(height: 4.0),
@@ -169,7 +169,7 @@ class CollectionTile extends StatelessWidget {
             child: CircularProgressIndicator(
               value: loadingProgress.expectedTotalBytes != null
                   ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
+                        loadingProgress.expectedTotalBytes!
                   : null,
               strokeWidth: 2.0,
             ),
@@ -219,10 +219,7 @@ class CollectionTile extends StatelessWidget {
   Widget _buildCount(BuildContext context) {
     return Text(
       '${item.itemCount} 张',
-      style: TextStyle(
-        fontSize: 12.0,
-        color: Colors.grey[600],
-      ),
+      style: TextStyle(fontSize: 12.0, color: Colors.grey[600]),
     );
   }
 }
