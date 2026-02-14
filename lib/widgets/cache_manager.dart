@@ -19,9 +19,9 @@ abstract class CacheManager<K, V> {
   String get debugPrefix => 'CacheManager';
 
   CacheManager({int memoryCapacity = 40})
-      : _memoryCapacity = memoryCapacity,
-        _memoryCache = LinkedHashMap(),
-        _inFlight = {};
+    : _memoryCapacity = memoryCapacity,
+      _memoryCache = LinkedHashMap(),
+      _inFlight = {};
 
   /// 从缓存中加载 key，如果不存在则调用 fetcher 获取
   ///
