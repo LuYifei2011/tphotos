@@ -21,6 +21,7 @@ import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
 import 'photos/photo_grid.dart';
 import 'settings_page.dart';
+import 'folders_page.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -1061,6 +1062,9 @@ class _PhotosPageState extends State<PhotosPage> {
                 ],
               ),
       );
+    }
+    if (_section == HomeSection.folders) {
+      return FoldersPage(api: widget.api);
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
