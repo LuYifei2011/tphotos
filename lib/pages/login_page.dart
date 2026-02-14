@@ -23,6 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passCtrl = TextEditingController();
   bool _remember = true;
   bool _loading = false;
+  bool _showPassword = false;
   String? _error;
 
   @override
@@ -273,8 +274,17 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _passCtrl,
-                    decoration: const InputDecoration(labelText: '密码'),
-                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: '密码',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _showPassword ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () =>
+                            setState(() => _showPassword = !_showPassword),
+                      ),
+                    ),
+                    obscureText: !_showPassword,
                     validator: (v) => (v == null || v.isEmpty) ? '请输入密码' : null,
                   ),
                   const SizedBox(height: 12),
