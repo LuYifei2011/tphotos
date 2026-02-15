@@ -22,6 +22,7 @@ import '../widgets/thumbnail_manager.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
 import 'albums_page.dart';
+import 'face_page.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -655,6 +656,9 @@ class _PhotosPageState extends State<PhotosPage> {
     }
     if (_section == HomeSection.albums) {
       return AlbumsPage(api: widget.api, backHandler: _albumBackHandler);
+    }
+    if (_section == HomeSection.people) {
+      return FacePage(api: widget.api, space: _space);
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
