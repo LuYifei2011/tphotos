@@ -15,6 +15,9 @@ class PhotoItemWidget extends StatelessWidget {
   final void Function() onTap;
   final Future<void> Function(PhotoItem) ensureThumbLoaded;
 
+  /// Hero 动画标签（为 null 时不使用 Hero）
+  final String? heroTag;
+
   /// 是否显示选择复选框
   final bool showSelection;
 
@@ -30,6 +33,7 @@ class PhotoItemWidget extends StatelessWidget {
     required this.thumbNotifier,
     required this.onTap,
     required this.ensureThumbLoaded,
+    this.heroTag,
     this.showSelection = false,
     this.isSelected = false,
     this.onSelectionChanged,
@@ -37,12 +41,8 @@ class PhotoItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: showSelection
-          ? () => onSelectionChanged?.call(!isSelected)
-          : onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
+    Widget content = ClipRRect(
+      borderRadius: BorderRadius.circular(6),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -122,7 +122,20 @@ class PhotoItemWidget extends StatelessWidget {
               ),
           ],
         ),
-      ),
+      );
+
+    if (heroTag != null) {
+      content = Hero(
+        tag: heroTag!,
+        child: content,
+      );
+    }
+
+    return GestureDetector(
+      onTap: showSelection
+          ? () => onSelectionChanged?.call(!isSelected)
+          : onTap,
+      child: content,
     );
   }
 }

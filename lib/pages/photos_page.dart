@@ -812,12 +812,15 @@ class _PhotosPageState extends State<PhotosPage> {
         final startIndex = allItems.indexOf(p);
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => PhotoViewer(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => PhotoViewer(
               photos: allItems,
               initialIndex: startIndex < 0 ? 0 : startIndex,
               api: widget.api,
             ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
           ),
         );
       },
@@ -923,12 +926,15 @@ class _PhotosPageState extends State<PhotosPage> {
         final startIndex = allItems.indexOf(p);
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => VideoPlayerPage(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => VideoPlayerPage(
               videos: allItems,
               initialIndex: startIndex < 0 ? 0 : startIndex,
               api: widget.api,
             ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
           ),
         );
       },
@@ -1088,6 +1094,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   @override
   Widget build(BuildContext context) {
     final item = widget.videos[_index];
+    final heroTag = 'photo_hero_${item.path}';
     return Scaffold(
       appBar: AppBar(
         title: Text('${item.name} (${_index + 1}/${widget.videos.length})'),
@@ -1106,62 +1113,71 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         ],
       ),
       body: Center(
-        child: _controller == null
-            ? const CircularProgressIndicator()
-            : FutureBuilder<void>(
-                future: _initFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const CircularProgressIndicator();
-                  }
-                  if (!_controller!.value.isInitialized) {
-                    return _buildVideoError();
-                  }
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final aspect = _controller!.value.aspectRatio == 0
-                          ? 16 / 9
-                          : _controller!.value.aspectRatio;
-                      return Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: constraints.maxWidth,
-                            maxHeight: constraints.maxHeight,
-                          ),
-                          child: AspectRatio(
-                            aspectRatio: aspect,
-                            child: JkVideoControlPanel(
-                              _controller!,
-                              showClosedCaptionButton: false,
-                              showFullscreenButton: true,
-                              showVolumeButton: true,
-                              bgColor: Colors.black,
-                              onPrevClicked: _index <= 0
-                                  ? null
-                                  : () {
-                                      _prev();
-                                    },
-                              onNextClicked: _index >= widget.videos.length - 1
-                                  ? null
-                                  : () {
-                                      _next();
-                                    },
-                              onPlayEnded: () {
-                                if (_index < widget.videos.length - 1) {
-                                  _next();
-                                } else {
-                                  _controller!.seekTo(Duration.zero);
-                                  _controller!.pause();
-                                }
-                              },
+        child: Hero(
+          tag: heroTag,
+          child: _controller == null
+              ? const ColoredBox(
+                  color: Colors.black,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : FutureBuilder<void>(
+                  future: _initFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const ColoredBox(
+                        color: Colors.black,
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    if (!_controller!.value.isInitialized) {
+                      return _buildVideoError();
+                    }
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final aspect = _controller!.value.aspectRatio == 0
+                            ? 16 / 9
+                            : _controller!.value.aspectRatio;
+                        return Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: constraints.maxWidth,
+                              maxHeight: constraints.maxHeight,
+                            ),
+                            child: AspectRatio(
+                              aspectRatio: aspect,
+                              child: JkVideoControlPanel(
+                                _controller!,
+                                showClosedCaptionButton: false,
+                                showFullscreenButton: true,
+                                showVolumeButton: true,
+                                bgColor: Colors.black,
+                                onPrevClicked: _index <= 0
+                                    ? null
+                                    : () {
+                                        _prev();
+                                      },
+                                onNextClicked: _index >= widget.videos.length - 1
+                                    ? null
+                                    : () {
+                                        _next();
+                                      },
+                                onPlayEnded: () {
+                                  if (_index < widget.videos.length - 1) {
+                                    _next();
+                                  } else {
+                                    _controller!.seekTo(Duration.zero);
+                                    _controller!.pause();
+                                  }
+                                },
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                        );
+                      },
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
@@ -1577,6 +1593,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
               },
               itemBuilder: (context, i) {
                 final p = widget.photos[i];
+                final heroTag = 'photo_hero_${p.path}';
                 final timestamp = DateTime.now().millisecondsSinceEpoch;
                 debugPrint(
                   '[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}',
@@ -1587,10 +1604,13 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 if (cachedProvider != null) {
                   return _buildInteractiveImage(
                     i,
-                    Image(
-                      image: cachedProvider,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
+                    Hero(
+                      tag: heroTag,
+                      child: Image(
+                        image: cachedProvider,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
                     ),
                   );
                 }
@@ -1601,60 +1621,69 @@ class _PhotoViewerState extends State<PhotoViewer> {
                   final provider = _getOrCreateImageProvider(p.path, cached);
                   return _buildInteractiveImage(
                     i,
-                    Image(
-                      image: provider,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
+                    Hero(
+                      tag: heroTag,
+                      child: Image(
+                        image: provider,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
                     ),
                   );
                 }
 
                 // 未命中内存缓存，使用 FutureBuilder 异步加载
-                return FutureBuilder<Uint8List>(
-                  future: _loadOriginal(p.path),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      );
-                    }
-                    if (snapshot.hasError || snapshot.data == null) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.broken_image,
-                              color: Colors.white,
-                              size: 64,
+                return _buildInteractiveImage(
+                  i,
+                  Hero(
+                    tag: heroTag,
+                    child: FutureBuilder<Uint8List>(
+                      future: _loadOriginal(p.path),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState != ConnectionState.done) {
+                          return const ColoredBox(
+                            color: Colors.black,
+                            child: Center(
+                              child: CircularProgressIndicator(color: Colors.white),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              '加载失败',
-                              style: const TextStyle(color: Colors.white),
+                          );
+                        }
+                        if (snapshot.hasError || snapshot.data == null) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.broken_image,
+                                  color: Colors.white,
+                                  size: 64,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '加载失败',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton(
+                                  onPressed: () => setState(() {}),
+                                  child: const Text('重试'),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            OutlinedButton(
-                              onPressed: () => setState(() {}),
-                              child: const Text('重试'),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    final provider = _getOrCreateImageProvider(
-                      p.path,
-                      snapshot.data!,
-                    );
-                    return _buildInteractiveImage(
-                      i,
-                      Image(
-                        image: provider,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
-                    );
-                  },
+                          );
+                        }
+                        final provider = _getOrCreateImageProvider(
+                          p.path,
+                          snapshot.data!,
+                        );
+                        return Image(
+                          image: provider,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        );
+                      },
+                    ),
+                  ),
                 );
               },
             ), // PageView.builder

@@ -40,6 +40,7 @@ class PhotoGrid extends StatelessWidget {
           return PhotoItemWidget(
             photo: p,
             thumbNotifier: notifier,
+            heroTag: 'photo_hero_${p.path}',
             onTap: () => onPhotoTap(p),
             ensureThumbLoaded: ensureThumbLoaded,
           );
