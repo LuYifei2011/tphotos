@@ -373,12 +373,37 @@ class _PhotosPageState extends State<PhotosPage> {
     return data;
   }
 
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _drawerOpen = false;
+  final FolderBackHandler _folderBackHandler = FolderBackHandler();
+
   @override
   Widget build(BuildContext context) {
+    // 侧栏打开时拦截返回并手动关闭侧栏，避免路由级返回抢占
+    // 文件夹子目录时拦截返回并先回到上一级目录
+    // 照片主页允许系统返回（退出应用）
+    final canPop = !_drawerOpen &&
+      !(_section == HomeSection.folders && _folderBackHandler.canGoBack) &&
+      _section == HomeSection.photos;
+
     return PopScope(
-      canPop: _section == HomeSection.photos,
+      canPop: canPop,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _section != HomeSection.photos) {
+        if (didPop) return; // 已经 pop 了（如关闭 drawer），不做额外处理
+
+        if (_drawerOpen) {
+          _scaffoldKey.currentState?.closeDrawer();
+          return;
+        }
+
+        // 先检查文件夹子页面是否需要返回上一级
+        if (_section == HomeSection.folders && _folderBackHandler.canGoBack) {
+          _folderBackHandler.goBack();
+          return;
+        }
+
+        // 不在照片页面时，切回照片页面
+        if (_section != HomeSection.photos) {
           setState(() {
             _section = HomeSection.photos;
             _photoScroll.showLabel = false;
@@ -391,6 +416,10 @@ class _PhotosPageState extends State<PhotosPage> {
         }
       },
       child: Scaffold(
+        key: _scaffoldKey,
+        onDrawerChanged: (isOpen) {
+          setState(() => _drawerOpen = isOpen);
+        },
         appBar: AppBar(
           title: Text(_titleForSection(_section)),
           actions: [
@@ -610,7 +639,10 @@ class _PhotosPageState extends State<PhotosPage> {
       );
     }
     if (_section == HomeSection.folders) {
-      return FoldersPage(api: widget.api);
+      return FoldersPage(
+        api: widget.api,
+        backHandler: _folderBackHandler,
+      );
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }

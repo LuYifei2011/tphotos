@@ -21,11 +21,31 @@ class _FolderContentCache {
     : cachedAt = DateTime.now();
 }
 
+/// 文件夹返回控制器，用于父页面查询和触发文件夹返回操作
+class FolderBackHandler {
+  bool Function() _canGoBack = () => false;
+  VoidCallback _goBack = () {};
+
+  bool get canGoBack => _canGoBack();
+  void goBack() => _goBack();
+
+  void attach({required bool Function() canGoBack, required VoidCallback goBack}) {
+    _canGoBack = canGoBack;
+    _goBack = goBack;
+  }
+
+  void detach() {
+    _canGoBack = () => false;
+    _goBack = () {};
+  }
+}
+
 /// 文件夹页面
 class FoldersPage extends StatefulWidget {
   final TosAPI api;
+  final FolderBackHandler? backHandler;
 
-  const FoldersPage({Key? key, required this.api}) : super(key: key);
+  const FoldersPage({Key? key, required this.api, this.backHandler}) : super(key: key);
 
   @override
   State<FoldersPage> createState() => _FoldersPageState();
@@ -61,6 +81,10 @@ class _FoldersPageState extends State<FoldersPage> {
   @override
   void initState() {
     super.initState();
+    widget.backHandler?.attach(
+      canGoBack: () => _pathHistory.length > 1,
+      goBack: _goBack,
+    );
     _loadFolders();
   }
 
@@ -242,17 +266,7 @@ class _FoldersPageState extends State<FoldersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        // 如果在子目录，返回上一级而不是退出页面
-        if (_pathHistory.length > 1) {
-          _goBack();
-          return false; // 阻止退出
-        }
-        return true; // 允许退出
-      },
-      child: _buildBody(),
-    );
+    return _buildBody();
   }
 
   Widget _buildBody() {
@@ -585,6 +599,7 @@ class _FoldersPageState extends State<FoldersPage> {
 
   @override
   void dispose() {
+    widget.backHandler?.detach();
     _scrollController.dispose();
     for (final n in _thumbNotifiers.values) {
       n.dispose();

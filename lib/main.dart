@@ -290,12 +290,28 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           );
         }
 
+        // 全平台统一使用支持预测性返回的页面过渡动画
+        const pageTransitionsTheme = PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+          },
+        );
+
         return MaterialApp(
           title: 'TPhotos',
-          theme: ThemeData(useMaterial3: true, colorScheme: lightColorScheme),
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: lightColorScheme,
+            pageTransitionsTheme: pageTransitionsTheme,
+          ),
           darkTheme: ThemeData(
             useMaterial3: true,
             colorScheme: darkColorScheme,
+            pageTransitionsTheme: pageTransitionsTheme,
           ),
           themeMode: _themeMode,
           routes: {
