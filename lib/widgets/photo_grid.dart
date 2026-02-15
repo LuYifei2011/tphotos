@@ -44,7 +44,8 @@ class PhotoGrid extends StatelessWidget {
             ensureThumbLoaded: ensureThumbLoaded,
           );
         }, childCount: items.length),
-        gridDelegate: gridDelegate ??
+        gridDelegate:
+            gridDelegate ??
             const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 120,
               crossAxisSpacing: 4,

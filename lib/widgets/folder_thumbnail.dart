@@ -40,10 +40,7 @@ class _FolderThumbnailWidgetState extends State<FolderThumbnailWidget> {
   final Map<String, ValueNotifier<Uint8List?>> _notifiers = {};
 
   ValueNotifier<Uint8List?> _notifierFor(String path) {
-    return _notifiers.putIfAbsent(
-      path,
-      () => ValueNotifier<Uint8List?>(null),
-    );
+    return _notifiers.putIfAbsent(path, () => ValueNotifier<Uint8List?>(null));
   }
 
   Future<void> _ensureLoaded(String thumbnailPath) async {
@@ -158,10 +155,9 @@ class _FolderThumbnailWidgetState extends State<FolderThumbnailWidget> {
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 1.5,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.3),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.3),
                     ),
                   ),
                 );

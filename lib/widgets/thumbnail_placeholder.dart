@@ -71,13 +71,12 @@ class ThumbnailPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor =
-        backgroundColor ?? (isDark ? const Color(0xFF303030) : const Color(0xFFE0E0E0));
+        backgroundColor ??
+        (isDark ? const Color(0xFF303030) : const Color(0xFFE0E0E0));
 
     return ColoredBox(
       color: bgColor,
-      child: Center(
-        child: _buildContent(context),
-      ),
+      child: Center(child: _buildContent(context)),
     );
   }
 
@@ -96,10 +95,9 @@ class ThumbnailPlaceholder extends StatelessWidget {
             Icon(
               Icons.broken_image,
               size: iconSize,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.3),
             ),
             if (message != null) ...[
               const SizedBox(height: 4),
@@ -107,10 +105,9 @@ class ThumbnailPlaceholder extends StatelessWidget {
                 message!,
                 style: TextStyle(
                   fontSize: 10,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.4),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -121,10 +118,7 @@ class ThumbnailPlaceholder extends StatelessWidget {
         return Icon(
           Icons.image_not_supported,
           size: iconSize,
-          color: Theme.of(context)
-              .colorScheme
-              .onSurface
-              .withValues(alpha: 0.3),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
         );
     }
   }

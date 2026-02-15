@@ -113,17 +113,10 @@ class PhotoItemWidget extends StatelessWidget {
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
                         : Colors.black.withValues(alpha: 0.3),
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 1.5,
-                    ),
+                    border: Border.all(color: Colors.white, width: 1.5),
                   ),
                   child: isSelected
-                      ? const Icon(
-                          Icons.check,
-                          size: 14,
-                          color: Colors.white,
-                        )
+                      ? const Icon(Icons.check, size: 14, color: Colors.white)
                       : null,
                 ),
               ),
@@ -132,5 +125,4 @@ class PhotoItemWidget extends StatelessWidget {
       ),
     );
   }
-
 }
