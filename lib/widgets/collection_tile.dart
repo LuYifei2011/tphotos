@@ -1,13 +1,5 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-
-/// 集合类型枚举
-enum CollectionType {
-  album, // 相册
-  folder, // 文件夹
-  people, // 人物
-  scene, // 场景
-  place, // 地点
-}
 
 /// 集合形状枚举
 enum CollectionShape {
@@ -15,67 +7,28 @@ enum CollectionShape {
   circle, // 圆形
 }
 
-/// 集合数据模型
-class CollectionItem {
-  /// 集合唯一标识
-  final String id;
-
+/// 通用集合展示 Tile（支持 `ValueNotifier<Uint8List?>` 缩略图）
+///
+/// 适用于：相册、人物、场景、地点等集合入口展示。
+/// 缩略图来源统一为 `ValueNotifier<Uint8List?>`，与 [ThumbnailManager] 对接。
+class CollectionTile extends StatelessWidget {
   /// 显示标题
   final String title;
 
-  /// 缩略图 URL（可选）
-  final String? thumbnailUrl;
+  /// 副标题（如 "123 张照片"）
+  final String? subtitle;
 
-  /// 集合内项目数量（可选）
-  final int? itemCount;
+  /// 缩略图数据 notifier 列表（1 张 = 单封面，2~4 张 = 2x2 网格）
+  final List<ValueNotifier<Uint8List?>> thumbnailNotifiers;
 
-  /// 默认图标（当无缩略图时使用）
-  final IconData? defaultIcon;
-
-  /// 集合类型
-  final CollectionType type;
-
-  CollectionItem({
-    required this.id,
-    required this.title,
-    this.thumbnailUrl,
-    this.itemCount,
-    this.defaultIcon,
-    required this.type,
-  });
-
-  /// 获取默认图标（根据类型）
-  IconData getDefaultIcon() {
-    if (defaultIcon != null) return defaultIcon!;
-
-    switch (type) {
-      case CollectionType.album:
-        return Icons.photo_library;
-      case CollectionType.folder:
-        return Icons.folder;
-      case CollectionType.people:
-        return Icons.person;
-      case CollectionType.scene:
-        return Icons.landscape;
-      case CollectionType.place:
-        return Icons.place;
-    }
-  }
-}
-
-/// 通用集合展示组件
-class CollectionTile extends StatelessWidget {
-  /// 集合数据
-  final CollectionItem item;
+  /// 无缩略图时的默认图标
+  final IconData defaultIcon;
 
   /// 形状（方形/圆形）
   final CollectionShape shape;
 
-  /// 尺寸（宽高）
-  final double size;
-
-  /// 是否显示数量
-  final bool showCount;
+  /// 方形圆角半径
+  final double borderRadius;
 
   /// 点击回调
   final VoidCallback? onTap;
@@ -83,22 +36,16 @@ class CollectionTile extends StatelessWidget {
   /// 长按回调
   final VoidCallback? onLongPress;
 
-  /// 方形圆角半径
-  final double borderRadius;
-
-  /// 缩略图适应方式
-  final BoxFit fit;
-
   const CollectionTile({
     super.key,
-    required this.item,
+    required this.title,
+    this.subtitle,
+    required this.thumbnailNotifiers,
+    this.defaultIcon = Icons.photo_library,
     this.shape = CollectionShape.square,
-    this.size = 120.0,
-    this.showCount = true,
+    this.borderRadius = 12.0,
     this.onTap,
     this.onLongPress,
-    this.borderRadius = 8.0,
-    this.fit = BoxFit.cover,
   });
 
   @override
@@ -107,198 +54,136 @@ class CollectionTile extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       borderRadius: shape == CollectionShape.circle
-          ? BorderRadius.circular(size / 2)
+          ? BorderRadius.circular(999)
           : BorderRadius.circular(borderRadius),
-      child: SizedBox(
-        width: size,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 缩略图或默认图标
-            _buildThumbnail(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 缩略图区域
+          Expanded(child: _buildThumbnailArea(context)),
 
-            const SizedBox(height: 8.0),
+          const SizedBox(height: 8),
 
-            // 标题
-            _buildTitle(context),
-
-            // 数量（可选）
-            if (showCount && item.itemCount != null) ...[
-              const SizedBox(height: 4.0),
-              _buildCount(context),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建缩略图部分
-  Widget _buildThumbnail() {
-    final thumbnailWidget = item.thumbnailUrl != null
-        ? _buildNetworkImage()
-        : _buildDefaultIcon();
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: shape == CollectionShape.circle
-          ? ClipOval(child: thumbnailWidget)
-          : ClipRRect(
-              borderRadius: BorderRadius.circular(borderRadius),
-              child: thumbnailWidget,
-            ),
-    );
-  }
-
-  /// 构建网络图片
-  Widget _buildNetworkImage() {
-    return Image.network(
-      item.thumbnailUrl!,
-      width: size,
-      height: size,
-      fit: fit,
-      errorBuilder: (context, error, stackTrace) {
-        // 加载失败时显示默认图标
-        return _buildDefaultIcon();
-      },
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return _buildPlaceholder(
-          child: Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                  : null,
-              strokeWidth: 2.0,
+          // 标题
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
+
+          // 副标题
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                subtitle!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumbnailArea(BuildContext context) {
+    if (thumbnailNotifiers.isEmpty) {
+      return _buildPlaceholder(context);
+    }
+
+    if (thumbnailNotifiers.length == 1 || shape == CollectionShape.circle) {
+      // 单封面
+      return _buildClipped(
+        context,
+        _buildSingleThumb(context, thumbnailNotifiers.first),
+      );
+    }
+
+    // 多封面 2x2 网格（最多 4 张）
+    final count = thumbnailNotifiers.length.clamp(0, 4);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+        ),
+        itemCount: count,
+        itemBuilder: (context, index) {
+          return _buildSingleThumb(context, thumbnailNotifiers[index]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildClipped(BuildContext context, Widget child) {
+    if (shape == CollectionShape.circle) {
+      return ClipOval(child: child);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: child,
+    );
+  }
+
+  Widget _buildSingleThumb(
+      BuildContext context, ValueNotifier<Uint8List?> notifier) {
+    return ValueListenableBuilder<Uint8List?>(
+      valueListenable: notifier,
+      builder: (context, bytes, child) {
+        if (bytes == null) {
+          return Container(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
         );
       },
     );
   }
 
-  /// 构建默认图标
-  Widget _buildDefaultIcon() {
-    return _buildPlaceholder(
-      child: Icon(
-        item.getDefaultIcon(),
-        size: size * 0.4,
-        color: Colors.grey[600],
-      ),
-    );
-  }
-
-  /// 构建占位容器
-  Widget _buildPlaceholder({required Widget child}) {
+  Widget _buildPlaceholder(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
-      color: Colors.grey[300],
-      child: Center(child: child),
-    );
-  }
-
-  /// 构建标题
-  Widget _buildTitle(BuildContext context) {
-    return Text(
-      item.title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        fontSize: 14.0,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: shape == CollectionShape.circle
+            ? BorderRadius.circular(999)
+            : BorderRadius.circular(borderRadius),
       ),
-    );
-  }
-
-  /// 构建数量显示
-  Widget _buildCount(BuildContext context) {
-    return Text(
-      '${item.itemCount} 张',
-      style: TextStyle(fontSize: 12.0, color: Colors.grey[600]),
-    );
-  }
-}
-
-/// 集合网格组件
-///
-/// 用于批量展示多个集合，自动排列成网格布局。
-///
-/// 使用示例：
-/// ```dart
-/// CollectionGrid(
-///   items: [
-///     CollectionItem(...),
-///     CollectionItem(...),
-///   ],
-///   crossAxisCount: 3,
-///   shape: CollectionShape.square,
-///   onTap: (item) => print('点击: ${item.title}'),
-/// )
-/// ```
-class CollectionGrid extends StatelessWidget {
-  /// 集合列表
-  final List<CollectionItem> items;
-
-  /// 每行数量
-  final int crossAxisCount;
-
-  /// 形状
-  final CollectionShape shape;
-
-  /// 是否显示数量
-  final bool showCount;
-
-  /// 点击回调
-  final void Function(CollectionItem item)? onTap;
-
-  /// 长按回调
-  final void Function(CollectionItem item)? onLongPress;
-
-  /// 网格间距
-  final double spacing;
-
-  /// 瓦片尺寸
-  final double tileSize;
-
-  const CollectionGrid({
-    super.key,
-    required this.items,
-    this.crossAxisCount = 3,
-    this.shape = CollectionShape.square,
-    this.showCount = true,
-    this.onTap,
-    this.onLongPress,
-    this.spacing = 16.0,
-    this.tileSize = 120.0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: EdgeInsets.all(spacing),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        mainAxisSpacing: spacing,
-        crossAxisSpacing: spacing,
-        childAspectRatio: shape == CollectionShape.circle ? 1.0 : 0.85,
+      child: Icon(
+        defaultIcon,
+        size: 48,
+        color: Theme.of(context)
+            .colorScheme
+            .onSurface
+            .withValues(alpha: 0.3),
       ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return CollectionTile(
-          item: item,
-          shape: shape,
-          size: tileSize,
-          showCount: showCount,
-          onTap: onTap != null ? () => onTap!(item) : null,
-          onLongPress: onLongPress != null ? () => onLongPress!(item) : null,
-        );
-      },
     );
   }
 }

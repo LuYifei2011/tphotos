@@ -15,11 +15,11 @@ class TimelineItem {
 
   factory TimelineItem.fromJson(Map<String, dynamic> json) {
     return TimelineItem(
-      year: json['year'] as int,
-      month: json['month'] as int,
-      day: json['day'] as int,
-      timestamp: json['timestamp'] as int,
-      photoCount: json['photo_count'] as int,
+      year: json['year'] as int? ?? 0,
+      month: json['month'] as int? ?? 0,
+      day: json['day'] as int? ?? 0,
+      timestamp: json['timestamp'] as int? ?? 0,
+      photoCount: json['photo_count'] as int? ?? 0,
     );
   }
 
@@ -55,15 +55,16 @@ class TimelineResponse {
 
   factory TimelineResponse.fromJson(Map<String, dynamic> json) {
     return TimelineResponse(
-      isLogin: json['is_login'] as bool,
-      code: json['code'] as bool,
-      msg: json['msg'] as String,
-      data: (json['data'] as List<dynamic>)
-          .map((item) => TimelineItem.fromJson(item as Map<String, dynamic>))
-          .toList(),
-      time: (json['time'] as num).toDouble(),
-      codeNum: json['code_num'] as int,
-      codeMsg: json['code_msg'] as String,
+      isLogin: json['is_login'] as bool? ?? false,
+      code: json['code'] as bool? ?? false,
+      msg: json['msg'] as String? ?? '',
+      data: (json['data'] as List<dynamic>?)
+              ?.map((item) => TimelineItem.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          [],
+      time: (json['time'] as num?)?.toDouble() ?? 0.0,
+      codeNum: json['code_num'] as int? ?? 0,
+      codeMsg: json['code_msg'] as String? ?? '',
     );
   }
 

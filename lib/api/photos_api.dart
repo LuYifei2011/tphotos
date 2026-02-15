@@ -2,7 +2,7 @@ import 'tos_client.dart';
 import '../models/timeline_models.dart';
 import '../models/photo_list_models.dart';
 import '../models/folder_models.dart';
-import '../models/album_models.dart';
+import '../models/album_models.dart' show AlbumListResponse;
 
 class PhotosAPI {
   final TosClient _client;
@@ -190,7 +190,7 @@ class PhotosAPI {
   /// [id] 相册 ID
   /// [timelineType] 时间线类型（1: 按月，2: 按日等）
   /// [order] 排序方向（"asc": 升序，"desc": 降序）
-  Future<AlbumTimelineResponse> albumTimeline({
+  Future<TimelineResponse> albumTimeline({
     required int id,
     int timelineType = 2,
     String order = 'desc',
@@ -204,7 +204,7 @@ class PhotosAPI {
       '/v2/proxy/TerraPhotos/AlbumTimeline',
       params: params,
     );
-    return AlbumTimelineResponse.fromJson(response);
+    return TimelineResponse.fromJson(response);
   }
 
   /// 获取相册中的照片列表

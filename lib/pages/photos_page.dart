@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/rendering.dart';
 import 'package:path/path.dart' as p;
 import 'package:saver_gallery/saver_gallery.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,11 +13,8 @@ import 'package:video_player_control_panel/video_player_control_panel.dart';
 import '../api/tos_api.dart';
 import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
-import '../widgets/adaptive_scrollbar.dart';
-import '../widgets/date_section_grid.dart';
-import '../widgets/date_section_state.dart';
 import '../widgets/original_photo_manager.dart';
-import '../widgets/thumbnail_manager.dart';
+import '../widgets/timeline_view.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
 import 'albums_page.dart';
@@ -38,9 +34,6 @@ enum HomeSection {
   shares,
 }
 
-// ThumbnailManager 已提取到 lib/widgets/thumbnail_manager.dart
-
-// ---------- 原来的 PhotosPage（已整合 ThumbnailManager + thumb notifiers） ----------
 class PhotosPage extends StatefulWidget {
   final TosAPI api;
   final ThemeMode themeMode;
@@ -56,110 +49,18 @@ class PhotosPage extends StatefulWidget {
   State<PhotosPage> createState() => _PhotosPageState();
 }
 
-// 时间线滚动上下文：封装滚动相关的状态和方法
-class _TimelineScrollContext {
-  final ScrollController controller = ScrollController();
-  double thumbFraction = 0.0;
-  bool showLabel = false;
-  Timer? labelHideTimer;
-  String? currentGroupLabel;
-  final Map<int, GlobalKey> headerKeys = {};
-
-  void dispose() {
-    labelHideTimer?.cancel();
-    controller.dispose();
-  }
-
-  void reset() {
-    thumbFraction = 0.0;
-    showLabel = false;
-    currentGroupLabel = null;
-    headerKeys.clear();
-  }
-
-  GlobalKey headerKeyFor(int timestamp) {
-    return headerKeys.putIfAbsent(timestamp, () => GlobalKey());
-  }
-}
-
 class _PhotosPageState extends State<PhotosPage> {
   HomeSection _section = HomeSection.photos;
-  List<dynamic> _photos = [];
-  // 视频 timeline 列表
-  List<dynamic> _videos = [];
-  bool _loading = true;
-  String? _error;
-  bool _videoLoading = false;
-  String? _videoError;
+
   // 当前空间（1: 个人空间, 2: 公共空间）
   int _space = 1;
   // 启动默认空间（仅用于设置页显示与保存，不影响当前 _space）
   int _defaultSpace = 1;
 
-  // 统一的日期分组状态管理（替代原有的 6 对独立 Map）
-  final Map<int, DateSectionState<PhotoListData>> _photoSections = {};
-  final Map<int, DateSectionState<PhotoListData>> _videoSections = {};
-
-  // 缩略图的 ValueNotifier，用于局部更新，避免大量 FutureBuilder 重建
-  final Map<String, ValueNotifier<Uint8List?>> _thumbNotifiers = {};
-  final Map<String, int> _thumbStamps = {};
-
   String? _username;
 
-  // 照片和视频的滚动上下文
-  final _TimelineScrollContext _photoScroll = _TimelineScrollContext();
-  final _TimelineScrollContext _videoScroll = _TimelineScrollContext();
-  final PageController _pageController = PageController();
-
-  bool get _isMobile => Platform.isAndroid || Platform.isIOS;
-
-  ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
-    return _thumbNotifiers.putIfAbsent(
-      path,
-      () => ValueNotifier<Uint8List?>(null),
-    );
-  }
-
-  Future<void> _ensureThumbLoaded(PhotoItem item) async {
-    final key = item.thumbnailPath;
-    final notifier = _thumbNotifierFor(key);
-    final targetStamp = item.timestamp;
-    final previousStamp = _thumbStamps[key];
-    final stampChanged = previousStamp != null && previousStamp != targetStamp;
-
-    _thumbStamps[key] = targetStamp;
-
-    if (stampChanged) {
-      notifier.value = null;
-    } else if (notifier.value != null) {
-      return;
-    }
-
-    try {
-      final bytes = await ThumbnailManager.instance.load(
-        key,
-        () => widget.api.photos.thumbnailBytes(item.thumbnailPath),
-        stamp: targetStamp,
-      );
-      notifier.value = bytes;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('缩略图加载失败: $e');
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _photoScroll.dispose();
-    _videoScroll.dispose();
-    _pageController.dispose();
-    // dispose notifiers
-    for (final n in _thumbNotifiers.values) {
-      n.dispose();
-    }
-    super.dispose();
-  }
+  // 用于在空间切换时强制重建 TimelineView
+  int _spaceVersion = 0;
 
   @override
   void initState() {
@@ -181,7 +82,6 @@ class _PhotosPageState extends State<PhotosPage> {
     }
     if (!mounted) return;
     setState(() {});
-    await _load();
   }
 
   Future<void> _onSpaceChanged(int v) async {
@@ -189,23 +89,12 @@ class _PhotosPageState extends State<PhotosPage> {
     if (v == _space) return;
     setState(() {
       _space = v;
-      // 切换空间时清空缓存与进行中的状态
-      _photoSections.clear();
-      _videoSections.clear();
-      _photoScroll.reset();
-      _videoScroll.reset();
-      // 重置缩略图 notifiers，避免跨空间污染 UI
-      for (final n in _thumbNotifiers.values) {
-        n.dispose();
-      }
-      _thumbNotifiers.clear();
-      _thumbStamps.clear();
+      _spaceVersion++;
     });
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('space', _space);
     } catch (_) {}
-    await _load();
   }
 
   // 仅保存默认空间（不影响当前 _space）
@@ -216,58 +105,6 @@ class _PhotosPageState extends State<PhotosPage> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('space', v);
     } catch (_) {}
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final res = await widget.api.photos.timeline(
-        space: _space,
-        fileType: 0,
-        timelineType: 2,
-        order: 'desc',
-      );
-      setState(() {
-        _photos = res.data;
-        _photoScroll.reset();
-        if (res.data.isNotEmpty) {
-          _photoScroll.currentGroupLabel = _formatDateLabel(res.data.first);
-        }
-      });
-    } catch (e) {
-      setState(() => _error = '加载失败: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadVideos() async {
-    setState(() {
-      _videoLoading = true;
-      _videoError = null;
-    });
-    try {
-      final res = await widget.api.photos.timeline(
-        space: _space,
-        fileType: 1, // 视频
-        timelineType: 2,
-        order: 'desc',
-      );
-      setState(() {
-        _videos = res.data;
-        _videoScroll.reset();
-        if (res.data.isNotEmpty) {
-          _videoScroll.currentGroupLabel = _formatDateLabel(res.data.first);
-        }
-      });
-    } catch (e) {
-      setState(() => _videoError = '加载失败: $e');
-    } finally {
-      if (mounted) setState(() => _videoLoading = false);
-    }
   }
 
   Future<void> _logout() async {
@@ -282,115 +119,18 @@ class _PhotosPageState extends State<PhotosPage> {
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
-  /// 开始为某一天触发 fetch（由 VisibilityDetector 在 header 可见时触发）
-  void _startFetchForItem(TimelineItem item) {
-    final key = item.timestamp;
-    final state = _photoSections.putIfAbsent(key, () => DateSectionState(key));
-    if (state.hasStarted) return;
-    state.markStarted();
-    _fetchPhotosForDate(item, state);
-  }
-
-  Future<void> _fetchPhotosForDate(
-    TimelineItem item,
-    DateSectionState<PhotoListData> state,
-  ) async {
-    if (!state.tryAddLoadingDate()) {
-      // 已有加载在途，等待其完成
-      await state.waitForOtherLoading();
-      return;
-    }
-
-    try {
-      final future = _getOrLoadDatePhotos(item);
-      state.setCurrentFuture(future);
-
-      final data = await future;
-      if (!mounted) return;
-
-      setState(() {
-        state.cacheItems(data, data.photoList);
-      });
-
-      // 当 fetch 返回后，可以检查是否需要自动加载下一天（填充不足）
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _maybeRequestNextIfNotFilled(item, data.photoList.length);
-      });
-    } catch (e) {
-      debugPrint('加载照片失败: $e');
-    } finally {
-      state.removeLoadingDate();
-      state.clearCurrentFuture();
-    }
-  }
-
-  void _maybeRequestNextIfNotFilled(TimelineItem item, int itemCount) {
-    final mq = MediaQuery.of(context);
-    final width = mq.size.width;
-    const maxCrossAxisExtent = 120.0;
-    const crossAxisSpacing = 4.0;
-    const mainAxisSpacing = 4.0;
-
-    final crossCount = (width / maxCrossAxisExtent).floor().clamp(1, 100);
-    final itemWidth =
-        (width - (crossCount - 1) * crossAxisSpacing) / crossCount;
-    final rows = (itemCount / crossCount).ceil();
-    final gridHeight = rows * itemWidth + (rows - 1) * mainAxisSpacing;
-
-    final viewportHeight =
-        mq.size.height - kToolbarHeight - 60; // 60 是标题+padding 的估算
-
-    if (gridHeight < viewportHeight * 0.8) {
-      _triggerLoadForIndex(
-        _photos.indexWhere(
-              (e) => (e as TimelineItem).timestamp == item.timestamp,
-            ) +
-            1,
-      );
-    }
-  }
-
-  void _triggerLoadForIndex(int idx) {
-    if (idx < 0 || idx >= _photos.length) return;
-    final next = _photos[idx] as TimelineItem;
-    _startFetchForItem(next);
-  }
-
-  Future<PhotoListData> _getOrLoadDatePhotos(TimelineItem item) async {
-    // 注意：Timeline.timestamp 单位假设为秒；以年月日计算当日范围
-    final start =
-        DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/
-        1000;
-    final end = start + 86400 - 1;
-    final data = await widget.api.photos.photoListAll(
-      space: _space,
-      listType: 1,
-      fileType: 0,
-      startTime: start,
-      endTime: end,
-      pageSize: 200,
-      timelineType: 2,
-      order: 'desc',
-    );
-    return data;
-  }
-
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _drawerOpen = false;
   final FolderBackHandler _folderBackHandler = FolderBackHandler();
-  final AlbumBackHandler _albumBackHandler = AlbumBackHandler();
 
   @override
   Widget build(BuildContext context) {
     // 侧栏打开时拦截返回并手动关闭侧栏，避免路由级返回抢占
     // 文件夹子目录时拦截返回并先回到上一级目录
-    // 相册子页面时拦截返回并先回到相册列表
     // 照片主页允许系统返回（退出应用）
     final canPop =
         !_drawerOpen &&
         !(_section == HomeSection.folders && _folderBackHandler.canGoBack) &&
-        !(_section == HomeSection.albums && _albumBackHandler.canGoBack) &&
         _section == HomeSection.photos;
 
     return PopScope(
@@ -409,23 +149,11 @@ class _PhotosPageState extends State<PhotosPage> {
           return;
         }
 
-        // 检查相册子页面是否需要返回相册列表
-        if (_section == HomeSection.albums && _albumBackHandler.canGoBack) {
-          _albumBackHandler.goBack();
-          return;
-        }
-
         // 不在照片页面时，切回照片页面
         if (_section != HomeSection.photos) {
           setState(() {
             _section = HomeSection.photos;
-            _photoScroll.showLabel = false;
-            _videoScroll.showLabel = false;
           });
-          // 如果照片列表为空，重新加载
-          if (_photos.isEmpty) {
-            _load();
-          }
         }
       },
       child: Scaffold(
@@ -531,15 +259,7 @@ class _PhotosPageState extends State<PhotosPage> {
         if (_section != section) {
           setState(() {
             _section = section;
-            _photoScroll.showLabel = false;
-            _videoScroll.showLabel = false;
           });
-          if (section == HomeSection.photos && _photos.isEmpty) {
-            _load();
-          }
-          if (section == HomeSection.videos && _videos.isEmpty) {
-            _loadVideos();
-          }
         }
       },
     );
@@ -568,94 +288,35 @@ class _PhotosPageState extends State<PhotosPage> {
 
   Widget _buildBody() {
     if (_section == HomeSection.photos) {
-      if (_loading) return const Center(child: CircularProgressIndicator());
-      if (_error != null) return Center(child: Text(_error!));
-      final scrollChild = _photos.isEmpty
-          ? ListView(
-              controller: _photoScroll.controller,
-              children: const [
-                SizedBox(height: 200),
-                Center(child: Text('暂无照片')),
-              ],
-            )
-          : CustomScrollView(
-              controller: _photoScroll.controller,
-              slivers: [
-                // For each date item we insert a header (SliverToBoxAdapter) and
-                // either a loader/empty widget or a SliverGrid for photos.
-                for (var raw in _photos)
-                  ..._buildDateSlivers(raw as TimelineItem),
-              ],
-            );
-
-      return Stack(
-        children: [
-          RefreshIndicator(
-            onRefresh: () async {
-              _photoSections.clear();
-              _photoScroll.headerKeys.clear();
-              await _load();
-            },
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notif) =>
-                  _handleScrollNotification(notif, _photoScroll, _photos),
-              child: AdaptiveScrollbar(
-                controller: _photoScroll.controller,
-                child: scrollChild,
-              ),
-            ),
-          ),
-          _buildScrollLabelOverlay(_photoScroll),
-        ],
+      return TimelineView(
+        key: ValueKey('photo-$_space-$_spaceVersion'),
+        loadTimeline: () => _loadPhotoTimeline(fileType: 0),
+        loadPhotosForDate: (item) => _loadPhotosForDate(item, fileType: 0),
+        loadThumbnail: (path) => widget.api.photos.thumbnailBytes(path),
+        api: widget.api,
+        keyPrefix: 'dategroup-photo',
+        emptyLabel: '暂无照片',
+        emptyDateLabel: '该日期无照片',
       );
     }
     if (_section == HomeSection.videos) {
-      if (_videoLoading)
-        return const Center(child: CircularProgressIndicator());
-      if (_videoError != null) return Center(child: Text(_videoError!));
-
-      final scrollChild = _videos.isEmpty
-          ? ListView(
-              controller: _videoScroll.controller,
-              children: const [
-                SizedBox(height: 200),
-                Center(child: Text('暂无视频')),
-              ],
-            )
-          : CustomScrollView(
-              controller: _videoScroll.controller,
-              slivers: [
-                for (var raw in _videos)
-                  ..._buildVideoDateSlivers(raw as TimelineItem),
-              ],
-            );
-
-      return Stack(
-        children: [
-          RefreshIndicator(
-            onRefresh: () async {
-              _videoSections.clear();
-              _videoScroll.headerKeys.clear();
-              await _loadVideos();
-            },
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notif) =>
-                  _handleScrollNotification(notif, _videoScroll, _videos),
-              child: AdaptiveScrollbar(
-                controller: _videoScroll.controller,
-                child: scrollChild,
-              ),
-            ),
-          ),
-          _buildScrollLabelOverlay(_videoScroll),
-        ],
+      return TimelineView(
+        key: ValueKey('video-$_space-$_spaceVersion'),
+        loadTimeline: () => _loadPhotoTimeline(fileType: 1),
+        loadPhotosForDate: (item) => _loadPhotosForDate(item, fileType: 1),
+        loadThumbnail: (path) => widget.api.photos.thumbnailBytes(path),
+        api: widget.api,
+        keyPrefix: 'videogroup',
+        emptyLabel: '暂无视频',
+        emptyDateLabel: '该日期无视频',
+        isVideoMode: true,
       );
     }
     if (_section == HomeSection.folders) {
       return FoldersPage(api: widget.api, backHandler: _folderBackHandler);
     }
     if (_section == HomeSection.albums) {
-      return AlbumsPage(api: widget.api, backHandler: _albumBackHandler);
+      return AlbumsPage(api: widget.api);
     }
     if (_section == HomeSection.people) {
       return FacePage(api: widget.api, space: _space);
@@ -663,222 +324,34 @@ class _PhotosPageState extends State<PhotosPage> {
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
 
-  // ---------------- 通用滚动处理方法 ----------------
-
-  bool _handleScrollNotification(
-    ScrollNotification notification,
-    _TimelineScrollContext context,
-    List<dynamic> items,
-  ) {
-    if (notification.metrics.axis != Axis.vertical) return false;
-
-    final maxExtent = notification.metrics.maxScrollExtent;
-    final nextFraction = maxExtent <= 0
-        ? 0.0
-        : (notification.metrics.pixels / maxExtent).clamp(0.0, 1.0);
-    if ((nextFraction - context.thumbFraction).abs() > 0.001) {
-      setState(() => context.thumbFraction = nextFraction);
-    }
-
-    if (notification is ScrollStartNotification &&
-        notification.dragDetails != null) {
-      _showGroupLabelNow(context);
-    } else if (notification is ScrollUpdateNotification &&
-        notification.dragDetails != null) {
-      _showGroupLabelNow(context);
-    } else if (notification is ScrollEndNotification) {
-      _scheduleHideGroupLabel(context);
-    }
-    _updateLabelFromScroll(notification.metrics, context, items);
-    return false;
-  }
-
-  void _updateLabelFromScroll(
-    ScrollMetrics metrics,
-    _TimelineScrollContext context,
-    List<dynamic> items,
-  ) {
-    double bestOffset = double.negativeInfinity;
-    TimelineItem? bestItem;
-
-    for (final raw in items) {
-      final item = raw as TimelineItem;
-      final key = context.headerKeyFor(item.timestamp);
-      final ctx = key.currentContext;
-      if (ctx == null) continue;
-      final render = ctx.findRenderObject();
-      if (render == null) continue;
-      final viewport = RenderAbstractViewport.of(render);
-      final offsetToReveal = viewport.getOffsetToReveal(render, 0).offset;
-      if (offsetToReveal <= metrics.pixels + 1.0 &&
-          offsetToReveal > bestOffset) {
-        bestOffset = offsetToReveal;
-        bestItem = item;
-      }
-    }
-
-    if (bestItem != null) {
-      final label = _formatDateLabel(bestItem);
-      if (label != context.currentGroupLabel) {
-        setState(() {
-          context.currentGroupLabel = label;
-        });
-      }
-    }
-  }
-
-  void _showGroupLabelNow(_TimelineScrollContext context) {
-    context.labelHideTimer?.cancel();
-    if (!context.showLabel) {
-      setState(() => context.showLabel = true);
-    }
-  }
-
-  void _scheduleHideGroupLabel(_TimelineScrollContext context) {
-    context.labelHideTimer?.cancel();
-    context.labelHideTimer = Timer(const Duration(milliseconds: 900), () {
-      if (mounted) {
-        setState(() => context.showLabel = false);
-      }
-    });
-  }
-
-  void _jumpToScrollFraction(double fraction, _TimelineScrollContext context) {
-    if (!context.controller.hasClients) return;
-    final maxExtent = context.controller.position.maxScrollExtent;
-    final target = (fraction.clamp(0.0, 1.0)) * maxExtent;
-    context.controller.jumpTo(target);
-    setState(() => context.thumbFraction = fraction.clamp(0.0, 1.0));
-  }
-
-  Widget _buildScrollLabelOverlay(_TimelineScrollContext scrollContext) {
-    final label = scrollContext.currentGroupLabel;
-    if (label == null) return const SizedBox.shrink();
-    final alignmentY = (scrollContext.thumbFraction.clamp(0.0, 1.0) * 2) - 1;
-    final media = MediaQuery.of(context);
-    final insetTop = 5.0;
-    final insetBottom = media.viewPadding.bottom + (_isMobile ? 6.0 : 5.0);
-    return Positioned.fill(
-      child: Padding(
-        padding: EdgeInsets.only(top: insetTop, bottom: insetBottom),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 120),
-          opacity: scrollContext.showLabel ? 1.0 : 0.0,
-          child: LayoutBuilder(
-            builder: (ctx, constraints) {
-              final maxHeight = constraints.maxHeight;
-              RenderBox? box;
-              void handleDrag(Offset globalPosition) {
-                if (!_isMobile) return;
-                box ??= ctx.findRenderObject() as RenderBox?;
-                if (box == null) return;
-                final local = box!.globalToLocal(globalPosition);
-                final fraction = (local.dy / maxHeight)
-                    .clamp(0.0, 1.0)
-                    .toDouble();
-                _jumpToScrollFraction(fraction, scrollContext);
-              }
-
-              return Align(
-                alignment: Alignment(1.0, alignmentY.isNaN ? -1 : alignmentY),
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 36.0),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onPanStart: _isMobile
-                        ? (details) {
-                            _showGroupLabelNow(scrollContext);
-                            handleDrag(details.globalPosition);
-                          }
-                        : null,
-                    onPanUpdate: _isMobile
-                        ? (details) => handleDrag(details.globalPosition)
-                        : null,
-                    onPanEnd: _isMobile
-                        ? (_) => _scheduleHideGroupLabel(scrollContext)
-                        : null,
-                    onTapDown: _isMobile
-                        ? (details) {
-                            _showGroupLabelNow(scrollContext);
-                            handleDrag(details.globalPosition);
-                          }
-                        : null,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.82),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 10,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
+  Future<List<TimelineItem>> _loadPhotoTimeline({required int fileType}) async {
+    final res = await widget.api.photos.timeline(
+      space: _space,
+      fileType: fileType,
+      timelineType: 2,
+      order: 'desc',
     );
+    return res.data;
   }
 
-  String _formatDateLabel(TimelineItem item) {
-    return '${item.year}-${item.month.toString().padLeft(2, '0')}-${item.day.toString().padLeft(2, '0')}';
-  }
-
-  // 构建每个日期对应的 sliver 片段（header + grid/loader）
-  List<Widget> _buildDateSlivers(TimelineItem item) {
-    final key = item.timestamp;
-    final state = _photoSections.putIfAbsent(key, () => DateSectionState(key));
-
-    return DateSectionGrid(
-      item: item,
-      state: state,
-      headerKey: _photoScroll.headerKeyFor(item.timestamp),
-      onHeaderVisible: (ti) {
-        if (!mounted) return;
-        _startFetchForItem(ti);
-      },
-      onItemTap: (p, allItems) {
-        final startIndex = allItems.indexOf(p);
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                PhotoViewer(
-                  photos: allItems,
-                  initialIndex: startIndex < 0 ? 0 : startIndex,
-                  api: widget.api,
-                ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-          ),
-        );
-      },
-      thumbNotifiers: _thumbNotifiers,
-      ensureThumbLoaded: _ensureThumbLoaded,
-      keyPrefix: 'dategroup-photo',
-      emptyLabel: '该日期无照片',
-    ).build(context);
+  Future<PhotoListData> _loadPhotosForDate(
+    TimelineItem item, {
+    required int fileType,
+  }) async {
+    final start =
+        DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/
+        1000;
+    final end = start + 86400 - 1;
+    return widget.api.photos.photoListAll(
+      space: _space,
+      listType: 1,
+      fileType: fileType,
+      startTime: start,
+      endTime: end,
+      pageSize: 200,
+      timelineType: 2,
+      order: 'desc',
+    );
   }
 
   IconData _themeIcon(ThemeMode mode) {
@@ -901,100 +374,6 @@ class _PhotosPageState extends State<PhotosPage> {
       case ThemeMode.system:
         return '跟随系统（点按切换）';
     }
-  }
-
-  // ---------------- 视频页逻辑（与照片类似，但 file_type=1） ----------------
-
-  Future<PhotoListData> _getOrLoadDateVideos(TimelineItem item) async {
-    // 注意：Timeline.timestamp 单位假设为秒；以年月日计算当日范围
-    final start =
-        DateTime(item.year, item.month, item.day).millisecondsSinceEpoch ~/
-        1000;
-    final end = start + 86400 - 1;
-    final data = await widget.api.photos.photoListAll(
-      space: _space,
-      listType: 1,
-      fileType: 1, // 视频
-      startTime: start,
-      endTime: end,
-      pageSize: 200,
-      timelineType: 2,
-      order: 'desc',
-    );
-    return data;
-  }
-
-  void _startFetchForVideoItem(TimelineItem item) {
-    final key = item.timestamp;
-    final state = _videoSections.putIfAbsent(key, () => DateSectionState(key));
-    if (state.hasStarted) return;
-    state.markStarted();
-    _fetchVideosForDate(item, state);
-  }
-
-  Future<void> _fetchVideosForDate(
-    TimelineItem item,
-    DateSectionState<PhotoListData> state,
-  ) async {
-    if (!state.tryAddLoadingDate()) {
-      // 已有加载在途，等待其完成
-      await state.waitForOtherLoading();
-      return;
-    }
-
-    try {
-      final future = _getOrLoadDateVideos(item);
-      state.setCurrentFuture(future);
-
-      final data = await future;
-      if (!mounted) return;
-
-      setState(() {
-        state.cacheItems(data, data.photoList);
-      });
-    } catch (e) {
-      debugPrint('加载视频失败: $e');
-    } finally {
-      state.removeLoadingDate();
-      state.clearCurrentFuture();
-    }
-  }
-
-  List<Widget> _buildVideoDateSlivers(TimelineItem item) {
-    final key = item.timestamp;
-    final state = _videoSections.putIfAbsent(key, () => DateSectionState(key));
-
-    return DateSectionGrid(
-      item: item,
-      state: state,
-      headerKey: _videoScroll.headerKeyFor(item.timestamp),
-      onHeaderVisible: (ti) {
-        if (!mounted) return;
-        _startFetchForVideoItem(ti);
-      },
-      onItemTap: (p, allItems) {
-        final startIndex = allItems.indexOf(p);
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                VideoPlayerPage(
-                  videos: allItems,
-                  initialIndex: startIndex < 0 ? 0 : startIndex,
-                  api: widget.api,
-                ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-          ),
-        );
-      },
-      thumbNotifiers: _thumbNotifiers,
-      ensureThumbLoaded: _ensureThumbLoaded,
-      keyPrefix: 'videogroup',
-      emptyLabel: '该日期无视频',
-    ).build(context);
   }
 }
 

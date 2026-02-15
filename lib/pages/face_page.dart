@@ -1,8 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../api/tos_api.dart';
 import '../models/face_models.dart';
+import '../widgets/adaptive_scrollbar.dart';
+import '../widgets/collection_tile.dart';
+import '../widgets/thumbnail_manager.dart';
 import 'face_photos_page.dart';
 
 class FacePage extends StatefulWidget {
@@ -23,7 +27,9 @@ class _FacePageState extends State<FacePage> {
   List<FaceIndexItem> _faces = [];
   bool _loading = true;
   String? _error;
-  final Map<String, Image?> _thumbCache = {};
+
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, ValueNotifier<Uint8List?>> _thumbNotifiers = {};
 
   @override
   void initState() {
@@ -39,6 +45,15 @@ class _FacePageState extends State<FacePage> {
     }
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    for (final n in _thumbNotifiers.values) {
+      n.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -52,32 +67,48 @@ class _FacePageState extends State<FacePage> {
       );
       setState(() {
         _faces = res.data.faceIndexList;
+        _loading = false;
       });
+      _preloadCovers();
     } catch (e) {
-      setState(() => _error = '加载失败: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _error = '加载失败: $e';
+          _loading = false;
+        });
+      }
     }
   }
 
-  Future<Image?> _loadThumb(String thumbPath) async {
-    if (_thumbCache.containsKey(thumbPath)) {
-      return _thumbCache[thumbPath];
+  ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
+    return _thumbNotifiers.putIfAbsent(
+      path,
+      () => ValueNotifier<Uint8List?>(null),
+    );
+  }
+
+  void _preloadCovers() {
+    for (final face in _faces.take(30)) {
+      if (face.exhibition.isNotEmpty) {
+        _ensureCoverLoaded(face.exhibition.first.thumbnailPath);
+      }
     }
+  }
+
+  Future<void> _ensureCoverLoaded(String thumbnailPath) async {
+    final notifier = _thumbNotifierFor(thumbnailPath);
+    if (notifier.value != null) return;
+
     try {
-      final bytes = await widget.api.face.faceThumbnailBytes(thumbPath);
-      final img = Image.memory(
-        Uint8List.fromList(bytes),
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
+      final bytes = await ThumbnailManager.instance.load(
+        thumbnailPath,
+        () => widget.api.face.faceThumbnailBytes(thumbnailPath),
       );
-      _thumbCache[thumbPath] = img;
-      if (mounted) setState(() {});
-      return img;
+      notifier.value = bytes;
     } catch (e) {
-      debugPrint('加载缩略图失败: $e');
-      _thumbCache[thumbPath] = null;
-      return null;
+      if (kDebugMode) {
+        debugPrint('人脸封面加载失败: $thumbnailPath, $e');
+      }
     }
   }
 
@@ -100,139 +131,93 @@ class _FacePageState extends State<FacePage> {
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _load,
-              child: const Text('重试'),
-            ),
-          ],
-        ),
+      return _buildStatus(
+        icon: Icons.error_outline,
+        iconColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+        message: _error!,
+        onRetry: _load,
       );
     }
 
     if (_faces.isEmpty) {
-      return const Center(child: Text('暂无人脸数据'));
+      return _buildStatus(
+        icon: Icons.person_outline,
+        iconColor:
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+        message: '暂无人脸数据',
+      );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 150,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 0.75,
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: AdaptiveScrollbar(
+        controller: _scrollController,
+        child: GridView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 150,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: _faces.length,
+          itemBuilder: (context, index) {
+            final face = _faces[index];
+            final notifiers = face.exhibition.isEmpty
+                ? <ValueNotifier<Uint8List?>>[]
+                : [
+                    (() {
+                      final path = face.exhibition.first.thumbnailPath;
+                      _ensureCoverLoaded(path);
+                      return _thumbNotifierFor(path);
+                    })(),
+                  ];
+
+            return CollectionTile(
+              title: face.name.isEmpty ? '未命名' : face.name,
+              subtitle: '${face.count} 张照片',
+              thumbnailNotifiers: notifiers,
+              defaultIcon: Icons.person,
+              shape: CollectionShape.circle,
+              onTap: () => _onTapFace(face),
+            );
+          },
+        ),
       ),
-      itemCount: _faces.length,
-      itemBuilder: (context, index) {
-        final face = _faces[index];
-        return _FaceCard(
-          face: face,
-          onTap: () => _onTapFace(face),
-          loadThumb: _loadThumb,
-        );
-      },
     );
   }
-}
 
-class _FaceCard extends StatefulWidget {
-  final FaceIndexItem face;
-  final VoidCallback onTap;
-  final Future<Image?> Function(String) loadThumb;
-
-  const _FaceCard({
-    required this.face,
-    required this.onTap,
-    required this.loadThumb,
-  });
-
-  @override
-  State<_FaceCard> createState() => _FaceCardState();
-}
-
-class _FaceCardState extends State<_FaceCard> {
-  Image? _thumbImage;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadImage();
-  }
-
-  Future<void> _loadImage() async {
-    if (widget.face.exhibition.isEmpty) {
-      setState(() => _loading = false);
-      return;
-    }
-    final thumbPath = widget.face.exhibition.first.thumbnailPath;
-    final img = await widget.loadThumb(thumbPath);
-    if (mounted) {
-      setState(() {
-        _thumbImage = img;
-        _loading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 缩略图
-            Expanded(
-              child: Container(
-                color: Colors.grey[200],
-                child: _loading
-                    ? const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : _thumbImage != null
-                        ? _thumbImage!
-                        : const Icon(Icons.person, size: 48),
-              ),
-            ),
-            // 名称和数量
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.face.name.isEmpty ? '未命名' : widget.face.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${widget.face.count} 张照片',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+  Widget _buildStatus({
+    required IconData icon,
+    required Color iconColor,
+    required String message,
+    VoidCallback? onRetry,
+  }) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height - 200,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 64, color: iconColor),
+                const SizedBox(height: 16),
+                Text(message, style: const TextStyle(fontSize: 16)),
+                if (onRetry != null) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('重试'),
                   ),
                 ],
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
