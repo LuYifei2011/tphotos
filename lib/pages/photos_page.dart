@@ -44,8 +44,9 @@ class ThumbnailManager {
   ThumbnailManager._internal();
   static final ThumbnailManager instance = ThumbnailManager._internal();
 
-  final int maxConcurrent = 6;
+  int maxConcurrent = 6; // 默认值，将从设置中加载
   int _running = 0;
+  Completer<void>? _settingsCompleter;
 
   final Queue<_QueuedTask> _queue = Queue<_QueuedTask>();
   final Map<String, Future<Uint8List>> _inFlight = {};
@@ -64,7 +65,38 @@ class ThumbnailManager {
     return _initFuture ??= _init();
   }
 
+  /// 确保设置只加载一次（线程安全）
+  Future<void> _loadSettings() async {
+    // 如果已经在加载或已加载完成，复用同一个 Future
+    if (_settingsCompleter != null) {
+      return _settingsCompleter!.future;
+    }
+    
+    _settingsCompleter = Completer<void>();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getInt('concurrent_requests') ?? 6;
+      maxConcurrent = value.clamp(1, 32);
+      debugPrint('[ThumbCache] Loaded concurrent requests setting: $maxConcurrent');
+      _settingsCompleter!.complete();
+    } catch (e) {
+      debugPrint('[ThumbCache] Failed to load settings: $e, using default: 6');
+      maxConcurrent = 6;
+      _settingsCompleter!.complete();
+    }
+    return _settingsCompleter!.future;
+  }
+
+  /// 更新并发数（从设置页面调用，立即生效）
+  void updateMaxConcurrent(int value) {
+    maxConcurrent = value.clamp(1, 32);
+    debugPrint('[ThumbCache] Updated concurrent requests to: $maxConcurrent');
+    // 触发调度，如果有排队的任务可以立即开始执行
+    _schedule();
+  }
+
   Future<void> _init() async {
+    await _loadSettings();
     try {
       Directory? baseDir;
       if (Platform.isAndroid) {

@@ -3,6 +3,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'photos_page.dart'; // For ThumbnailManager
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
@@ -24,6 +26,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late int _selectedSpace;
   bool _isSaving = false;
+  int _concurrentRequests = 6; // 默认并发数
   String? _appName;
   String? _appVersion;
   String? _savedLanServer;
@@ -37,6 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _selectedSpace = widget.defaultSpace == 1 ? 1 : 2;
     _loadPackageInfo();
     _loadSavedServers();
+    _loadConcurrentRequests();
   }
 
   @override
@@ -95,6 +99,45 @@ class _SettingsPageState extends State<SettingsPage> {
       });
     } catch (_) {
       // Ignore errors if preferences are unavailable.
+    }
+  }
+
+  Future<void> _loadConcurrentRequests() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getInt('concurrent_requests') ?? 6;
+      if (!mounted) return;
+      setState(() {
+        _concurrentRequests = value.clamp(1, 32);
+      });
+    } catch (_) {
+      // Use default value on error.
+    }
+  }
+
+  Future<void> _saveConcurrentRequests(int value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('concurrent_requests', value);
+      
+      // 立即更新 ThumbnailManager，使设置即时生效
+      ThumbnailManager.instance.updateMaxConcurrent(value);
+      
+      if (!mounted) return;
+      setState(() {
+        _concurrentRequests = value;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('已保存并应用：最大并发请求数 $value'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败: $e')),
+      );
     }
   }
 
@@ -221,6 +264,57 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 24),
+          const Divider(),
+          const ListTile(
+            title: Text('性能设置'),
+            subtitle: Text('调整图片加载性能参数'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '最大并发请求数',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    Text(
+                      '$_concurrentRequests',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: _concurrentRequests.toDouble(),
+                  min: 1,
+                  max: 32,
+                  divisions: 31,
+                  label: '$_concurrentRequests',
+                  onChanged: (value) {
+                    setState(() {
+                      _concurrentRequests = value.toInt();
+                    });
+                  },
+                  onChangeEnd: (value) {
+                    _saveConcurrentRequests(value.toInt());
+                  },
+                ),
+                Text(
+                  '控制同时加载的图片数量。较高的值可加快加载速度，但会占用更多网络和内存资源。设置会立即生效。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: .7),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info_outline),
