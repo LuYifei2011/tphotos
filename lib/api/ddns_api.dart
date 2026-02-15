@@ -5,7 +5,7 @@ class DdnsAPI {
 
   DdnsAPI(this._client);
 
-  /// Fetch DDNS host URL from /v2/ddns/; returns https://{host_name}:5443 when available.
+  /// Fetch DDNS host URL from /v2/ddns/; returns https://{host_name}:{port} when available.
   Future<String?> ddnsUrl() async {
     final response = await _client.get('/v2/ddns/');
 
@@ -25,9 +25,11 @@ class DdnsAPI {
     }
 
     final records = data['records'];
-    if (records is! List) {
+    if (records is! List || records.isEmpty) {
       return null;
     }
+
+    final httpsPort = (await _client.get('/v2/networkSet/GetRoutineSetConf'))['data']?['https_port'] ?? 5443;
 
     for (final record in records) {
       if (record is! Map<String, dynamic>) {
@@ -35,7 +37,7 @@ class DdnsAPI {
       }
       final hostName = record['host_name'];
       if (hostName is String && hostName.isNotEmpty) {
-        return 'https://$hostName:5443';
+        return 'https://$hostName:$httpsPort';
       }
     }
 
