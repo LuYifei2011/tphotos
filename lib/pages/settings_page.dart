@@ -119,10 +119,10 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('concurrent_requests', value);
-      
+
       // 立即更新 ThumbnailManager，使设置即时生效
       ThumbnailManager.instance.updateMaxConcurrent(value);
-      
+
       if (!mounted) return;
       setState(() {
         _concurrentRequests = value;
@@ -135,9 +135,9 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
     }
   }
 
@@ -265,10 +265,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
           const Divider(),
-          const ListTile(
-            title: Text('性能设置'),
-            subtitle: Text('调整图片加载性能参数'),
-          ),
+          const ListTile(title: Text('性能设置'), subtitle: Text('调整图片加载性能参数')),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
@@ -308,7 +305,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text(
                   '控制同时加载的图片数量。较高的值可加快加载速度，但会占用更多网络和内存资源。设置会立即生效。',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: .7),
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.color?.withValues(alpha: .7),
                   ),
                 ),
                 const SizedBox(height: 8),

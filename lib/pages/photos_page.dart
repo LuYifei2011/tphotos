@@ -71,13 +71,15 @@ class ThumbnailManager {
     if (_settingsCompleter != null) {
       return _settingsCompleter!.future;
     }
-    
+
     _settingsCompleter = Completer<void>();
     try {
       final prefs = await SharedPreferences.getInstance();
       final value = prefs.getInt('concurrent_requests') ?? 6;
       maxConcurrent = value.clamp(1, 32);
-      debugPrint('[ThumbCache] Loaded concurrent requests setting: $maxConcurrent');
+      debugPrint(
+        '[ThumbCache] Loaded concurrent requests setting: $maxConcurrent',
+      );
       _settingsCompleter!.complete();
     } catch (e) {
       debugPrint('[ThumbCache] Failed to load settings: $e, using default: 6');
