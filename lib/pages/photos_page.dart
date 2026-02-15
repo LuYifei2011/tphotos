@@ -1310,7 +1310,8 @@ class _PhotoViewerState extends State<PhotoViewer> {
   final FocusNode _focusNode = FocusNode();
   String? _lastSavedPath; // 仅桌面平台使用
   bool _isZoomed = false; // 跟踪图片是否处于放大状态
-  final Map<int, TransformationController> _transformControllers = {}; // 每个页面的变换控制器
+  final Map<int, TransformationController> _transformControllers =
+      {}; // 每个页面的变换控制器
   int _pointerCount = 0; // 屏幕上的手指数量
 
   // 使用 CacheManager 统一管理原图缓存
@@ -1557,94 +1558,47 @@ class _PhotoViewerState extends State<PhotoViewer> {
               if (_pointerCount < 2) setState(() {});
             },
             child: PageView.builder(
-                controller: _controller,
-                physics: (_isZoomed || _pointerCount >= 2)
-                    ? const NeverScrollableScrollPhysics()
-                    : const PageScrollPhysics(),
-                itemCount: widget.photos.length,
-                onPageChanged: (i) {
-                  setState(() {
-                    _index = i;
-                    final controller = _transformControllers[i];
-                    if (controller != null) {
-                      _isZoomed = controller.value.getMaxScaleOnAxis() > 1.01;
-                    } else {
-                      _isZoomed = false;
-                    }
-                  });
-                  _prefetchAround(i);
-                },
-            itemBuilder: (context, i) {
-              final p = widget.photos[i];
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
-              debugPrint(
-                '[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}',
-              );
-
-              // 检查是否有缓存的 ImageProvider（已预解码）
-              final cachedProvider = _imageProviderCache[p.path];
-              if (cachedProvider != null) {
-                return _buildInteractiveImage(
-                  i,
-                  Image(
-                    image: cachedProvider,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                  ),
-                );
-              }
-
-              // 同步检查内存缓存，命中则创建 ImageProvider
-              final cached = _cacheManager.getIfPresent(p.path);
-              if (cached != null) {
-                final provider = _getOrCreateImageProvider(p.path, cached);
-                return _buildInteractiveImage(
-                  i,
-                  Image(
-                    image: provider,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                  ),
-                );
-              }
-
-              // 未命中内存缓存，使用 FutureBuilder 异步加载
-              return FutureBuilder<Uint8List>(
-                future: _loadOriginal(p.path),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
+              controller: _controller,
+              physics: (_isZoomed || _pointerCount >= 2)
+                  ? const NeverScrollableScrollPhysics()
+                  : const PageScrollPhysics(),
+              itemCount: widget.photos.length,
+              onPageChanged: (i) {
+                setState(() {
+                  _index = i;
+                  final controller = _transformControllers[i];
+                  if (controller != null) {
+                    _isZoomed = controller.value.getMaxScaleOnAxis() > 1.01;
+                  } else {
+                    _isZoomed = false;
                   }
-                  if (snapshot.hasError || snapshot.data == null) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.broken_image,
-                            color: Colors.white,
-                            size: 64,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            '加载失败',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: () => setState(() {}),
-                            child: const Text('重试'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  final provider = _getOrCreateImageProvider(
-                    p.path,
-                    snapshot.data!,
+                });
+                _prefetchAround(i);
+              },
+              itemBuilder: (context, i) {
+                final p = widget.photos[i];
+                final timestamp = DateTime.now().millisecondsSinceEpoch;
+                debugPrint(
+                  '[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}',
+                );
+
+                // 检查是否有缓存的 ImageProvider（已预解码）
+                final cachedProvider = _imageProviderCache[p.path];
+                if (cachedProvider != null) {
+                  return _buildInteractiveImage(
+                    i,
+                    Image(
+                      image: cachedProvider,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    ),
                   );
+                }
+
+                // 同步检查内存缓存，命中则创建 ImageProvider
+                final cached = _cacheManager.getIfPresent(p.path);
+                if (cached != null) {
+                  final provider = _getOrCreateImageProvider(p.path, cached);
                   return _buildInteractiveImage(
                     i,
                     Image(
@@ -1653,10 +1607,57 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       gaplessPlayback: true,
                     ),
                   );
-                },
-              );
-            },
-          ), // PageView.builder
+                }
+
+                // 未命中内存缓存，使用 FutureBuilder 异步加载
+                return FutureBuilder<Uint8List>(
+                  future: _loadOriginal(p.path),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    }
+                    if (snapshot.hasError || snapshot.data == null) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.broken_image,
+                              color: Colors.white,
+                              size: 64,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '加载失败',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              onPressed: () => setState(() {}),
+                              child: const Text('重试'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    final provider = _getOrCreateImageProvider(
+                      p.path,
+                      snapshot.data!,
+                    );
+                    return _buildInteractiveImage(
+                      i,
+                      Image(
+                        image: provider,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
+                    );
+                  },
+                );
+              },
+            ), // PageView.builder
           ), // Listener
         ),
       ),
