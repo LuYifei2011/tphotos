@@ -29,7 +29,11 @@ class DdnsAPI {
       return null;
     }
 
-    final httpsPort = (await _client.get('/v2/networkSet/GetRoutineSetConf'))['data']?['https_port'] ?? 5443;
+    final httpsPort =
+        (await _client.get(
+          '/v2/networkSet/GetRoutineSetConf',
+        ))['data']?['https_port'] ??
+        5443;
 
     for (final record in records) {
       if (record is! Map<String, dynamic>) {
