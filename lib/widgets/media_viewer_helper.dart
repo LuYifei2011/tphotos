@@ -7,13 +7,13 @@ import '../pages/photos_page.dart';
 /// 提供统一的图片/视频查看入口，根据媒体类型自动选择合适的查看器
 class MediaViewerHelper {
   /// 打开媒体查看器
-  /// 
+  ///
   /// 参数：
   /// - [context]: BuildContext
   /// - [items]: 媒体列表（PhotoItem）
   /// - [initialIndex]: 初始显示的索引
   /// - [api]: TosAPI 实例
-  /// 
+  ///
   /// 根据初始项目的类型自动选择：
   /// - type = 0: 图片查看器（PhotoViewer）
   /// - type = 1: 视频播放器（VideoPlayerPage）
@@ -33,7 +33,7 @@ class MediaViewerHelper {
       // 视频：过滤出所有视频
       final videos = items.where((item) => item.type == 1).toList();
       final videoIndex = videos.indexOf(currentItem);
-      
+
       if (videoIndex >= 0) {
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
@@ -49,15 +49,12 @@ class MediaViewerHelper {
       // 图片（type = 0 或其他）：过滤出所有图片
       final photos = items.where((item) => item.type != 1).toList();
       final photoIndex = photos.indexOf(currentItem);
-      
+
       if (photoIndex >= 0) {
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
-            builder: (_) => PhotoViewer(
-              photos: photos,
-              initialIndex: photoIndex,
-              api: api,
-            ),
+            builder: (_) =>
+                PhotoViewer(photos: photos, initialIndex: photoIndex, api: api),
           ),
         );
       }
