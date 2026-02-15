@@ -1309,6 +1309,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
   late int _index;
   final FocusNode _focusNode = FocusNode();
   String? _lastSavedPath; // 仅桌面平台使用
+  bool _isZoomed = false; // 跟踪图片是否处于放大状态
+  final Map<int, TransformationController> _transformControllers = {}; // 每个页面的变换控制器
+  int _pointerCount = 0; // 屏幕上的手指数量
 
   // 使用 CacheManager 统一管理原图缓存
   static final _PhotoViewerCacheManager _cacheManager =
@@ -1355,6 +1358,11 @@ class _PhotoViewerState extends State<PhotoViewer> {
     );
     _controller.dispose();
     _focusNode.dispose();
+    // 清理所有 transformation controllers
+    for (final controller in _transformControllers.values) {
+      controller.dispose();
+    }
+    _transformControllers.clear();
     super.dispose();
   }
 
@@ -1432,6 +1440,35 @@ class _PhotoViewerState extends State<PhotoViewer> {
     );
   }
 
+  // 获取或创建指定索引的 TransformationController
+  TransformationController _getTransformController(int index) {
+    return _transformControllers.putIfAbsent(index, () {
+      final controller = TransformationController();
+      controller.addListener(() {
+        // 实时检测缩放状态
+        final scale = controller.value.getMaxScaleOnAxis();
+        final shouldBeZoomed = scale > 1.01;
+        if (_isZoomed != shouldBeZoomed) {
+          setState(() => _isZoomed = shouldBeZoomed);
+        }
+      });
+      return controller;
+    });
+  }
+
+  // 构建带缩放的 InteractiveViewer
+  // panEnabled 仅在放大时启用，避免与 PageView 争投单指手势
+  Widget _buildInteractiveImage(int pageIndex, Widget child) {
+    return InteractiveViewer(
+      transformationController: _getTransformController(pageIndex),
+      panEnabled: _isZoomed, // 未放大时禁止平移，让 PageView 处理单指滑动
+      scaleEnabled: true,
+      minScale: 0.5,
+      maxScale: 5,
+      child: Center(child: child),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = widget.photos[_index];
@@ -1506,17 +1543,37 @@ class _PhotoViewerState extends State<PhotoViewer> {
               },
             ),
           },
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: widget.photos.length,
-            onPageChanged: (i) {
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
-              debugPrint(
-                '[PhotoViewer][$timestamp] onPageChanged: $_index -> $i',
-              );
-              setState(() => _index = i);
-              _prefetchAround(i);
+          child: Listener(
+            onPointerDown: (_) {
+              _pointerCount++;
+              if (_pointerCount >= 2) setState(() {}); // 双指触摸时立即禁用 PageView
             },
+            onPointerUp: (_) {
+              _pointerCount--;
+              if (_pointerCount < 2) setState(() {}); // 手指抬起后恢复
+            },
+            onPointerCancel: (_) {
+              _pointerCount--;
+              if (_pointerCount < 2) setState(() {});
+            },
+            child: PageView.builder(
+                controller: _controller,
+                physics: (_isZoomed || _pointerCount >= 2)
+                    ? const NeverScrollableScrollPhysics()
+                    : const PageScrollPhysics(),
+                itemCount: widget.photos.length,
+                onPageChanged: (i) {
+                  setState(() {
+                    _index = i;
+                    final controller = _transformControllers[i];
+                    if (controller != null) {
+                      _isZoomed = controller.value.getMaxScaleOnAxis() > 1.01;
+                    } else {
+                      _isZoomed = false;
+                    }
+                  });
+                  _prefetchAround(i);
+                },
             itemBuilder: (context, i) {
               final p = widget.photos[i];
               final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -1527,33 +1584,12 @@ class _PhotoViewerState extends State<PhotoViewer> {
               // 检查是否有缓存的 ImageProvider（已预解码）
               final cachedProvider = _imageProviderCache[p.path];
               if (cachedProvider != null) {
-                debugPrint(
-                  '[PhotoViewer][$timestamp] ⚡ Using cached ImageProvider (pre-decoded): ${p.path}',
-                );
-                return InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 5,
-                  child: Center(
-                    child: Image(
-                      image: cachedProvider,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                      frameBuilder:
-                          (context, child, frame, wasSynchronouslyLoaded) {
-                            final now = DateTime.now().millisecondsSinceEpoch;
-                            debugPrint(
-                              '[PhotoViewer][$now] Image(provider) frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms',
-                            );
-                            if (frame == null) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                ),
-                              );
-                            }
-                            return child;
-                          },
-                    ),
+                return _buildInteractiveImage(
+                  i,
+                  Image(
+                    image: cachedProvider,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
                   ),
                 );
               }
@@ -1561,49 +1597,21 @@ class _PhotoViewerState extends State<PhotoViewer> {
               // 同步检查内存缓存，命中则创建 ImageProvider
               final cached = _cacheManager.getIfPresent(p.path);
               if (cached != null) {
-                debugPrint(
-                  '[PhotoViewer][$timestamp] ⚡ SYNC display from memory cache: ${p.path} (${cached.length} bytes)',
-                );
                 final provider = _getOrCreateImageProvider(p.path, cached);
-                return InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 5,
-                  child: Center(
-                    child: Image(
-                      image: provider,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                      frameBuilder:
-                          (context, child, frame, wasSynchronouslyLoaded) {
-                            final now = DateTime.now().millisecondsSinceEpoch;
-                            debugPrint(
-                              '[PhotoViewer][$now] Image.memory frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${now - timestamp}ms',
-                            );
-                            if (frame == null) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                ),
-                              );
-                            }
-                            return child;
-                          },
-                    ),
+                return _buildInteractiveImage(
+                  i,
+                  Image(
+                    image: provider,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
                   ),
                 );
               }
 
-              debugPrint(
-                '[PhotoViewer][$timestamp] ✗ Memory cache MISS, using FutureBuilder',
-              );
               // 未命中内存缓存，使用 FutureBuilder 异步加载
               return FutureBuilder<Uint8List>(
                 future: _loadOriginal(p.path),
                 builder: (context, snapshot) {
-                  final now = DateTime.now().millisecondsSinceEpoch;
-                  debugPrint(
-                    '[PhotoViewer][$now] FutureBuilder state: ${snapshot.connectionState}, hasData=${snapshot.hasData}, hasError=${snapshot.hasError}',
-                  );
                   if (snapshot.connectionState != ConnectionState.done) {
                     return const Center(
                       child: CircularProgressIndicator(color: Colors.white),
@@ -1633,44 +1641,23 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       ),
                     );
                   }
-                  debugPrint(
-                    '[PhotoViewer][$now] FutureBuilder returning InteractiveViewer with ImageProvider',
-                  );
                   final provider = _getOrCreateImageProvider(
                     p.path,
                     snapshot.data!,
                   );
-                  return InteractiveViewer(
-                    minScale: 0.5,
-                    maxScale: 5,
-                    child: Center(
-                      child: Image(
-                        image: provider,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                        frameBuilder:
-                            (context, child, frame, wasSynchronouslyLoaded) {
-                              final frameTime =
-                                  DateTime.now().millisecondsSinceEpoch;
-                              debugPrint(
-                                '[PhotoViewer][$frameTime] FutureBuilder Image frameBuilder: frame=$frame, sync=$wasSynchronouslyLoaded, delay=${frameTime - timestamp}ms',
-                              );
-                              if (frame == null) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
-                                );
-                              }
-                              return child;
-                            },
-                      ),
+                  return _buildInteractiveImage(
+                    i,
+                    Image(
+                      image: provider,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
                     ),
                   );
                 },
               );
             },
-          ),
+          ), // PageView.builder
+          ), // Listener
         ),
       ),
     );
