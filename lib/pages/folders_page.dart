@@ -69,6 +69,9 @@ class _FoldersPageState extends State<FoldersPage> {
       _clearCache(_currentFolderPath);
     }
 
+    // 递增版本号，使之前的异步请求失效
+    final currentVersion = ++_loadVersion;
+
     // 检查缓存
     if (!forceRefresh && _folderContentCache.containsKey(_currentFolderPath)) {
       final cached = _folderContentCache[_currentFolderPath]!;
@@ -82,9 +85,6 @@ class _FoldersPageState extends State<FoldersPage> {
       _preloadThumbnails();
       return;
     }
-
-    // 递增版本号，标记新请求
-    final currentVersion = ++_loadVersion;
 
     setState(() {
       _isLoading = true;
