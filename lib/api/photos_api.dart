@@ -179,9 +179,7 @@ class PhotosAPI {
 
   /// 获取相册列表
   Future<AlbumListResponse> albumList() async {
-    final response = await _client.get(
-      '/v2/proxy/TerraPhotos/AlbumList',
-    );
+    final response = await _client.get('/v2/proxy/TerraPhotos/AlbumList');
     return AlbumListResponse.fromJson(response);
   }
 

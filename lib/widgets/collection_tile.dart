@@ -71,10 +71,7 @@ class CollectionTile extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
           ),
 
@@ -86,10 +83,9 @@ class CollectionTile extends StatelessWidget {
                 subtitle!,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ),
@@ -143,7 +139,9 @@ class CollectionTile extends StatelessWidget {
   }
 
   Widget _buildSingleThumb(
-      BuildContext context, ValueNotifier<Uint8List?> notifier) {
+    BuildContext context,
+    ValueNotifier<Uint8List?> notifier,
+  ) {
     return ValueListenableBuilder<Uint8List?>(
       valueListenable: notifier,
       builder: (context, bytes, child) {
@@ -159,11 +157,7 @@ class CollectionTile extends StatelessWidget {
             ),
           );
         }
-        return Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-        );
+        return Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
       },
     );
   }
@@ -179,10 +173,7 @@ class CollectionTile extends StatelessWidget {
       child: Icon(
         defaultIcon,
         size: 48,
-        color: Theme.of(context)
-            .colorScheme
-            .onSurface
-            .withValues(alpha: 0.3),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
       ),
     );
   }

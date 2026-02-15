@@ -139,8 +139,9 @@ class _AlbumsPageState extends State<AlbumsPage> {
     if (_albums.isEmpty) {
       return _buildStatus(
         icon: Icons.photo_album,
-        iconColor:
-            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+        iconColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.3),
         message: '暂无相册',
       );
     }

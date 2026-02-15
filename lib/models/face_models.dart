@@ -6,10 +6,7 @@ class FaceExhibition {
   final String path;
   final String thumbnailPath;
 
-  FaceExhibition({
-    required this.path,
-    required this.thumbnailPath,
-  });
+  FaceExhibition({required this.path, required this.thumbnailPath});
 
   factory FaceExhibition.fromJson(Map<String, dynamic> json) {
     return FaceExhibition(
@@ -19,10 +16,7 @@ class FaceExhibition {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'path': path,
-      'thumbnail_path': thumbnailPath,
-    };
+    return {'path': path, 'thumbnail_path': thumbnailPath};
   }
 }
 
@@ -78,10 +72,7 @@ class FaceIndexData {
   final int total;
   final List<FaceIndexItem> faceIndexList;
 
-  FaceIndexData({
-    required this.total,
-    required this.faceIndexList,
-  });
+  FaceIndexData({required this.total, required this.faceIndexList});
 
   factory FaceIndexData.fromJson(Map<String, dynamic> json) {
     return FaceIndexData(

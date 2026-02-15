@@ -13,11 +13,7 @@ class FacePage extends StatefulWidget {
   final TosAPI api;
   final int space;
 
-  const FacePage({
-    super.key,
-    required this.api,
-    required this.space,
-  });
+  const FacePage({super.key, required this.api, required this.space});
 
   @override
   State<FacePage> createState() => _FacePageState();
@@ -115,11 +111,8 @@ class _FacePageState extends State<FacePage> {
   void _onTapFace(FaceIndexItem face) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => FacePhotosPage(
-          api: widget.api,
-          space: widget.space,
-          face: face,
-        ),
+        builder: (context) =>
+            FacePhotosPage(api: widget.api, space: widget.space, face: face),
       ),
     );
   }
@@ -142,8 +135,9 @@ class _FacePageState extends State<FacePage> {
     if (_faces.isEmpty) {
       return _buildStatus(
         icon: Icons.person_outline,
-        iconColor:
-            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+        iconColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.3),
         message: '暂无人脸数据',
       );
     }

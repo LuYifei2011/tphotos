@@ -13,10 +13,7 @@ class AlbumExhibition {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'path': path,
-      'thumbnail_path': thumbnailPath,
-    };
+    return {'path': path, 'thumbnail_path': thumbnailPath};
   }
 }
 

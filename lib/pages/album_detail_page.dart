@@ -13,11 +13,7 @@ class AlbumDetailPage extends StatelessWidget {
   final TosAPI api;
   final AlbumInfo album;
 
-  const AlbumDetailPage({
-    super.key,
-    required this.api,
-    required this.album,
-  });
+  const AlbumDetailPage({super.key, required this.api, required this.album});
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +30,9 @@ class AlbumDetailPage extends StatelessWidget {
               '${album.count} 张照片',
               style: TextStyle(
                 fontSize: 13,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
