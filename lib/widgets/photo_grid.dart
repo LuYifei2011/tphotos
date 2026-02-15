@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../models/photo_list_models.dart';
+import 'photo_item.dart';
 
 class PhotoGrid extends StatelessWidget {
   final List<PhotoItem> items;
@@ -9,18 +10,26 @@ class PhotoGrid extends StatelessWidget {
   final Map<String, ValueNotifier<Uint8List?>> thumbNotifiers;
   final Future<void> Function(PhotoItem) ensureThumbLoaded;
 
+  /// 可选的网格布局代理；为 null 时使用默认 maxCrossAxisExtent: 120
+  final SliverGridDelegate? gridDelegate;
+
+  /// 可选的外边距；为 null 时使用默认 8.0 水平边距
+  final EdgeInsetsGeometry? padding;
+
   const PhotoGrid({
     super.key,
     required this.items,
     required this.onPhotoTap,
     required this.thumbNotifiers,
     required this.ensureThumbLoaded,
+    this.gridDelegate,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      padding: padding ?? const EdgeInsets.symmetric(horizontal: 8.0),
       sliver: SliverGrid(
         delegate: SliverChildBuilderDelegate((context, i) {
           final p = items[i];
@@ -28,44 +37,19 @@ class PhotoGrid extends StatelessWidget {
             p.thumbnailPath,
             () => ValueNotifier<Uint8List?>(null),
           );
-          return GestureDetector(
+          return PhotoItemWidget(
+            photo: p,
+            thumbNotifier: notifier,
             onTap: () => onPhotoTap(p),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ValueListenableBuilder<Uint8List?>(
-                    valueListenable: notifier,
-                    builder: (context, bytes, _) {
-                      if (bytes == null) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          unawaited(ensureThumbLoaded(p));
-                        });
-                        return const ColoredBox(
-                          color: Color(0x11000000),
-                          child: Center(
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      }
-                      return Image.memory(bytes, fit: BoxFit.cover);
-                    },
-                  ),
-                ],
-              ),
-            ),
+            ensureThumbLoaded: ensureThumbLoaded,
           );
         }, childCount: items.length),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 120,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
+        gridDelegate: gridDelegate ??
+            const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 120,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
       ),
     );
   }

@@ -1,9 +1,14 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../api/tos_api.dart';
 import '../models/folder_models.dart';
 import '../models/photo_list_models.dart';
+import '../widgets/adaptive_scrollbar.dart';
+import '../widgets/folder_thumbnail.dart';
+import '../widgets/photo_grid.dart';
+import '../widgets/thumbnail_manager.dart';
 
 /// 文件夹内容缓存
 class _FolderContentCache {
@@ -31,8 +36,11 @@ class _FoldersPageState extends State<FoldersPage> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  // 缩略图缓存（文件夹和照片共用）
-  final Map<String, Uint8List> _thumbnailCache = {};
+  // 滚动控制器
+  final ScrollController _scrollController = ScrollController();
+
+  // 缩略图 ValueNotifier，与 photos_page 共享 ThumbnailManager 缓存
+  final Map<String, ValueNotifier<Uint8List?>> _thumbNotifiers = {};
 
   // 文件夹内容缓存（按路径存储）
   final Map<String, _FolderContentCache> _folderContentCache = {};
@@ -149,51 +157,37 @@ class _FoldersPageState extends State<FoldersPage> {
     }
   }
 
-  /// 预加载缩略图（文件夹和照片）
-  Future<void> _preloadThumbnails() async {
-    // 预加载文件夹缩略图
-    for (final folder in _folders) {
-      if (folder.hasThumbnail) {
-        // 加载最多4个缩略图
-        final thumbnails = folder.additional.thumbnail.take(4);
-        for (final thumb in thumbnails) {
-          final thumbnailPath = thumb.thumbnailPath;
-          if (!_thumbnailCache.containsKey(thumbnailPath)) {
-            try {
-              final bytes = await widget.api.photos.thumbnailBytes(
-                thumbnailPath,
-              );
-              if (mounted) {
-                setState(() {
-                  _thumbnailCache[thumbnailPath] = Uint8List.fromList(bytes);
-                });
-              }
-            } catch (e) {
-              // 忽略缩略图加载失败
-              debugPrint('加载文件夹缩略图失败: $thumbnailPath, $e');
-            }
-          }
-        }
+  ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
+    return _thumbNotifiers.putIfAbsent(
+      path,
+      () => ValueNotifier<Uint8List?>(null),
+    );
+  }
+
+  Future<void> _ensureThumbLoaded(String thumbnailPath) async {
+    final notifier = _thumbNotifierFor(thumbnailPath);
+    if (notifier.value != null) return;
+
+    try {
+      final bytes = await ThumbnailManager.instance.load(
+        thumbnailPath,
+        () => widget.api.photos.thumbnailBytes(thumbnailPath),
+      );
+      notifier.value = bytes;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('缩略图加载失败: $thumbnailPath, $e');
       }
     }
+  }
+
+  /// 预加载缩略图（照片）
+  void _preloadThumbnails() {
+    // 文件夹缩略图由 FolderThumbnailWidget 自动加载
 
     // 预加载照片缩略图（前20张）
-    final photosToPreload = _photos.take(20);
-    for (final photo in photosToPreload) {
-      final thumbnailPath = photo.thumbnailPath;
-      if (!_thumbnailCache.containsKey(thumbnailPath)) {
-        try {
-          final bytes = await widget.api.photos.thumbnailBytes(thumbnailPath);
-          if (mounted) {
-            setState(() {
-              _thumbnailCache[thumbnailPath] = Uint8List.fromList(bytes);
-            });
-          }
-        } catch (e) {
-          // 忽略缩略图加载失败
-          debugPrint('加载照片缩略图失败: $thumbnailPath, $e');
-        }
-      }
+    for (final photo in _photos.take(20)) {
+      _ensureThumbLoaded(photo.thumbnailPath);
     }
   }
 
@@ -364,79 +358,87 @@ class _FoldersPageState extends State<FoldersPage> {
 
           // 混合内容（文件夹 + 照片）
           Expanded(
-            child: CustomScrollView(
-              slivers: [
-                // 文件夹网格
-                if (_folders.isNotEmpty) ...[
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    sliver: SliverToBoxAdapter(
-                      child: Text(
-                        '文件夹',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 0.68,
-                          ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildFolderTile(_folders[index]),
-                        childCount: _folders.length,
-                      ),
-                    ),
-                  ),
-                ],
-
-                // 照片网格
-                if (_photos.isNotEmpty) ...[
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    sliver: SliverToBoxAdapter(
-                      child: Text(
-                        '照片',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            mainAxisSpacing: 4,
-                            crossAxisSpacing: 4,
-                            childAspectRatio: 1.0,
-                          ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildPhotoTile(_photos[index]),
-                        childCount: _photos.length,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            child: AdaptiveScrollbar(
+              controller: _scrollController,
+              child: CustomScrollView(
+                controller: _scrollController,
+                slivers: _buildContentSlivers(),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 构建内容 slivers（文件夹 + 照片）
+  List<Widget> _buildContentSlivers() {
+    return [
+      // 文件夹网格
+      if (_folders.isNotEmpty) ...[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              '文件夹',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.68,
+                ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildFolderTile(_folders[index]),
+              childCount: _folders.length,
+            ),
+          ),
+        ),
+      ],
+
+      // 照片网格
+      if (_photos.isNotEmpty) ...[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              '照片',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+        PhotoGrid(
+          items: _photos,
+          onPhotoTap: (p) {
+            // TODO: 打开照片详情
+          },
+          thumbNotifiers: _thumbNotifiers,
+          ensureThumbLoaded: (item) => _ensureThumbLoaded(item.thumbnailPath),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 4,
+            childAspectRatio: 1.0,
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      ],
+    ];
   }
 
   /// 构建面包屑导航
@@ -549,7 +551,10 @@ class _FoldersPageState extends State<FoldersPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 缩略图或默认图标
-          _buildFolderThumbnail(folder),
+          FolderThumbnailWidget(
+            folder: folder,
+            loadThumbnail: (path) => widget.api.photos.thumbnailBytes(path),
+          ),
 
           const SizedBox(height: 8),
 
@@ -573,231 +578,12 @@ class _FoldersPageState extends State<FoldersPage> {
     );
   }
 
-  /// 构建文件夹缩略图
-  Widget _buildFolderThumbnail(FolderInfo folder) {
-    const size = 120.0;
-    const borderRadius = 8.0;
-
-    Widget content;
-
-    if (folder.hasThumbnail) {
-      final thumbnails = folder.additional.thumbnail.take(4).toList();
-
-      if (thumbnails.length == 1) {
-        // 单个缩略图，全屏显示
-        content = _buildSingleThumbnail(thumbnails[0].thumbnailPath, size);
-      } else {
-        // 多个缩略图，使用2x2网格
-        content = _buildMultipleThumbnails(thumbnails, size);
-      }
-    } else {
-      // 无缩略图，显示默认图标
-      content = _buildDefaultIcon();
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    for (final n in _thumbNotifiers.values) {
+      n.dispose();
     }
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: content,
-      ),
-    );
-  }
-
-  /// 构建单个缩略图
-  Widget _buildSingleThumbnail(String thumbnailPath, double size) {
-    final cachedBytes = _thumbnailCache[thumbnailPath];
-
-    if (cachedBytes != null) {
-      return Image.memory(
-        cachedBytes,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildDefaultIcon();
-        },
-      );
-    } else {
-      return _buildPlaceholder(
-        child: const CircularProgressIndicator(strokeWidth: 2),
-      );
-    }
-  }
-
-  /// 构建多个缩略图（2x2网格）
-  Widget _buildMultipleThumbnails(
-    List<FolderThumbnail> thumbnails,
-    double size,
-  ) {
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 0.5,
-        crossAxisSpacing: 0.5,
-      ),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        if (index < thumbnails.length) {
-          final thumbnailPath = thumbnails[index].thumbnailPath;
-          final cachedBytes = _thumbnailCache[thumbnailPath];
-
-          if (cachedBytes != null) {
-            return Image.memory(
-              cachedBytes,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return _buildGridPlaceholder();
-              },
-            );
-          } else {
-            return _buildGridPlaceholder(
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.3),
-                ),
-              ),
-            );
-          }
-        } else {
-          // 空位
-          return _buildGridPlaceholder();
-        }
-      },
-    );
-  }
-
-  /// 构建网格单元格占位
-  Widget _buildGridPlaceholder({Widget? child}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      color: isDark ? Colors.grey[850] : Colors.grey[200],
-      child: child != null ? Center(child: child) : null,
-    );
-  }
-
-  /// 构建默认图标
-  Widget _buildDefaultIcon() {
-    return _buildPlaceholder(
-      child: Icon(
-        Icons.folder,
-        size: 48,
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-      ),
-    );
-  }
-
-  /// 构建占位容器
-  Widget _buildPlaceholder({required Widget child}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: 120,
-      height: 120,
-      color: isDark ? Colors.grey[800] : Colors.grey[300],
-      child: Center(child: child),
-    );
-  }
-
-  /// 构建照片瓦片
-  Widget _buildPhotoTile(PhotoItem photo) {
-    final thumbnailPath = photo.thumbnailPath;
-    final cachedBytes = _thumbnailCache[thumbnailPath];
-
-    return InkWell(
-      onTap: () {
-        // TODO: 打开照片详情
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.grey[850]
-              : Colors.grey[200],
-        ),
-        child: cachedBytes != null
-            ? Image.memory(
-                cachedBytes,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Center(
-                    child: Icon(
-                      Icons.broken_image,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.3),
-                    ),
-                  );
-                },
-              )
-            : FutureBuilder<Uint8List>(
-                future: _loadPhotoThumbnail(thumbnailPath),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return Image.memory(
-                      snapshot.data!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.3),
-                          ),
-                        );
-                      },
-                    );
-                  } else if (snapshot.hasError) {
-                    return Center(
-                      child: Icon(
-                        Icons.error_outline,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.error.withValues(alpha: 0.5),
-                      ),
-                    );
-                  } else {
-                    return Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.3),
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-      ),
-    );
-  }
-
-  /// 加载照片缩略图
-  Future<Uint8List> _loadPhotoThumbnail(String thumbnailPath) async {
-    if (_thumbnailCache.containsKey(thumbnailPath)) {
-      return _thumbnailCache[thumbnailPath]!;
-    }
-
-    try {
-      final bytes = await widget.api.photos.thumbnailBytes(thumbnailPath);
-      if (mounted) {
-        setState(() {
-          _thumbnailCache[thumbnailPath] = Uint8List.fromList(bytes);
-        });
-      }
-      return Uint8List.fromList(bytes);
-    } catch (e) {
-      throw Exception('加载缩略图失败: $e');
-    }
+    super.dispose();
   }
 }

@@ -3,7 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'photos_page.dart'; // For ThumbnailManager
+import '../widgets/thumbnail_manager.dart'; // For ThumbnailManager
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
