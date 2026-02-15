@@ -43,92 +43,89 @@ class PhotoItemWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget content = ClipRRect(
       borderRadius: BorderRadius.circular(6),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // 缩略图
-            ValueListenableBuilder<Uint8List?>(
-              valueListenable: thumbNotifier,
-              builder: (context, bytes, _) {
-                if (bytes == null) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    unawaited(ensureThumbLoaded(photo));
-                  });
-                  return const ColoredBox(
-                    color: Color(0x11000000),
-                    child: Center(
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 缩略图
+          ValueListenableBuilder<Uint8List?>(
+            valueListenable: thumbNotifier,
+            builder: (context, bytes, _) {
+              if (bytes == null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  unawaited(ensureThumbLoaded(photo));
+                });
+                return const ColoredBox(
+                  color: Color(0x11000000),
+                  child: Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                  );
-                }
-                return Image.memory(bytes, fit: BoxFit.cover);
-              },
+                  ),
+                );
+              }
+              return Image.memory(bytes, fit: BoxFit.cover);
+            },
+          ),
+
+          // 视频标识 overlay
+          if (photo.type == 1)
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(
+                  Icons.videocam,
+                  size: 14,
+                  color: Colors.white,
+                ),
+              ),
             ),
 
-            // 视频标识 overlay
-            if (photo.type == 1)
-              Positioned(
-                right: 4,
-                bottom: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(
-                    Icons.videocam,
-                    size: 14,
-                    color: Colors.white,
-                  ),
-                ),
+          // 收藏标识
+          if (photo.isCollect == 1)
+            Positioned(
+              left: 4,
+              bottom: 4,
+              child: Icon(
+                Icons.star,
+                size: 16,
+                color: Colors.amber.withValues(alpha: 0.9),
               ),
+            ),
 
-            // 收藏标识
-            if (photo.isCollect == 1)
-              Positioned(
-                left: 4,
-                bottom: 4,
-                child: Icon(
-                  Icons.star,
-                  size: 16,
-                  color: Colors.amber.withValues(alpha: 0.9),
+          // 选择复选框
+          if (showSelection)
+            Positioned(
+              right: 4,
+              top: 4,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.black.withValues(alpha: 0.3),
+                  border: Border.all(color: Colors.white, width: 1.5),
                 ),
+                child: isSelected
+                    ? const Icon(Icons.check, size: 14, color: Colors.white)
+                    : null,
               ),
-
-            // 选择复选框
-            if (showSelection)
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.black.withValues(alpha: 0.3),
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: isSelected
-                      ? const Icon(Icons.check, size: 14, color: Colors.white)
-                      : null,
-                ),
-              ),
-          ],
-        ),
-      );
+            ),
+        ],
+      ),
+    );
 
     if (heroTag != null) {
-      content = Hero(
-        tag: heroTag!,
-        child: content,
-      );
+      content = Hero(tag: heroTag!, child: content);
     }
 
     return GestureDetector(

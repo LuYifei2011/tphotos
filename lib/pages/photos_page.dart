@@ -382,9 +382,10 @@ class _PhotosPageState extends State<PhotosPage> {
     // 侧栏打开时拦截返回并手动关闭侧栏，避免路由级返回抢占
     // 文件夹子目录时拦截返回并先回到上一级目录
     // 照片主页允许系统返回（退出应用）
-    final canPop = !_drawerOpen &&
-      !(_section == HomeSection.folders && _folderBackHandler.canGoBack) &&
-      _section == HomeSection.photos;
+    final canPop =
+        !_drawerOpen &&
+        !(_section == HomeSection.folders && _folderBackHandler.canGoBack) &&
+        _section == HomeSection.photos;
 
     return PopScope(
       canPop: canPop,
@@ -639,10 +640,7 @@ class _PhotosPageState extends State<PhotosPage> {
       );
     }
     if (_section == HomeSection.folders) {
-      return FoldersPage(
-        api: widget.api,
-        backHandler: _folderBackHandler,
-      );
+      return FoldersPage(api: widget.api, backHandler: _folderBackHandler);
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
@@ -845,14 +843,16 @@ class _PhotosPageState extends State<PhotosPage> {
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => PhotoViewer(
-              photos: allItems,
-              initialIndex: startIndex < 0 ? 0 : startIndex,
-              api: widget.api,
-            ),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                PhotoViewer(
+                  photos: allItems,
+                  initialIndex: startIndex < 0 ? 0 : startIndex,
+                  api: widget.api,
+                ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
           ),
         );
       },
@@ -959,14 +959,16 @@ class _PhotosPageState extends State<PhotosPage> {
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => VideoPlayerPage(
-              videos: allItems,
-              initialIndex: startIndex < 0 ? 0 : startIndex,
-              api: widget.api,
-            ),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                VideoPlayerPage(
+                  videos: allItems,
+                  initialIndex: startIndex < 0 ? 0 : startIndex,
+                  api: widget.api,
+                ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
           ),
         );
       },
@@ -1188,7 +1190,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                     : () {
                                         _prev();
                                       },
-                                onNextClicked: _index >= widget.videos.length - 1
+                                onNextClicked:
+                                    _index >= widget.videos.length - 1
                                     ? null
                                     : () {
                                         _next();
@@ -1676,7 +1679,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
                           return const ColoredBox(
                             color: Colors.black,
                             child: Center(
-                              child: CircularProgressIndicator(color: Colors.white),
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
                             ),
                           );
                         }

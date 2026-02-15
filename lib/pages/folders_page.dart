@@ -29,7 +29,10 @@ class FolderBackHandler {
   bool get canGoBack => _canGoBack();
   void goBack() => _goBack();
 
-  void attach({required bool Function() canGoBack, required VoidCallback goBack}) {
+  void attach({
+    required bool Function() canGoBack,
+    required VoidCallback goBack,
+  }) {
     _canGoBack = canGoBack;
     _goBack = goBack;
   }
@@ -45,7 +48,8 @@ class FoldersPage extends StatefulWidget {
   final TosAPI api;
   final FolderBackHandler? backHandler;
 
-  const FoldersPage({Key? key, required this.api, this.backHandler}) : super(key: key);
+  const FoldersPage({Key? key, required this.api, this.backHandler})
+    : super(key: key);
 
   @override
   State<FoldersPage> createState() => _FoldersPageState();
