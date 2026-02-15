@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../widgets/original_photo_manager.dart';
 import '../widgets/thumbnail_manager.dart'; // For ThumbnailManager
 
 class SettingsPage extends StatefulWidget {
@@ -26,6 +27,8 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late int _selectedSpace;
   bool _isSaving = false;
+  bool _isClearingOriginalCache = false;
+  bool _isClearingThumbnailCache = false;
   int _concurrentRequests = 6; // 默认并发数
   String? _appName;
   String? _appVersion;
@@ -122,6 +125,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       // 立即更新 ThumbnailManager，使设置即时生效
       ThumbnailManager.instance.updateMaxConcurrent(value);
+      OriginalPhotoManager.instance.updateMaxConcurrent(value);
 
       if (!mounted) return;
       setState(() {
@@ -138,6 +142,48 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+    }
+  }
+
+  Future<void> _clearOriginalDiskCache() async {
+    if (_isClearingOriginalCache) return;
+    setState(() => _isClearingOriginalCache = true);
+    try {
+      final removed = await OriginalPhotoManager.instance.clearDiskCache();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已清理原图磁盘缓存：$removed 项')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('清理失败: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingOriginalCache = false);
+      }
+    }
+  }
+
+  Future<void> _clearThumbnailDiskCache() async {
+    if (_isClearingThumbnailCache) return;
+    setState(() => _isClearingThumbnailCache = true);
+    try {
+      final removed = await ThumbnailManager.instance.clearDiskCache();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已清理缩略图磁盘缓存：$removed 项')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('清理失败: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingThumbnailCache = false);
+      }
     }
   }
 
@@ -309,6 +355,39 @@ class _SettingsPageState extends State<SettingsPage> {
                       context,
                     ).textTheme.bodySmall?.color?.withValues(alpha: .7),
                   ),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.cleaning_services_outlined),
+                  title: const Text('清理原图磁盘缓存'),
+                  subtitle: const Text('删除已缓存的原图文件，下次查看会重新下载'),
+                  trailing: _isClearingOriginalCache
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.chevron_right),
+                  onTap: _isClearingOriginalCache
+                      ? null
+                      : _clearOriginalDiskCache,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.cleaning_services_outlined),
+                  title: const Text('清理缩略图磁盘缓存'),
+                  subtitle: const Text('删除已缓存的缩略图文件，下次浏览会重新下载'),
+                  trailing: _isClearingThumbnailCache
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.chevron_right),
+                  onTap: _isClearingThumbnailCache
+                      ? null
+                      : _clearThumbnailDiskCache,
                 ),
                 const SizedBox(height: 8),
               ],

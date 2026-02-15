@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -13,10 +14,10 @@ import 'package:video_player_control_panel/video_player_control_panel.dart';
 import '../api/tos_api.dart';
 import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
-import '../widgets/cache_manager.dart';
 import '../widgets/adaptive_scrollbar.dart';
 import '../widgets/date_section_grid.dart';
 import '../widgets/date_section_state.dart';
+import '../widgets/original_photo_manager.dart';
 import '../widgets/thumbnail_manager.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
@@ -1365,12 +1366,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
       {}; // 每个页面的变换控制器
   int _pointerCount = 0; // 屏幕上的手指数量
 
-  // 使用 CacheManager 统一管理原图缓存
-  static final _PhotoViewerCacheManager _cacheManager =
-      _PhotoViewerCacheManager();
-
-  static final Map<String, ImageProvider> _imageProviderCache =
-      {}; // 缓存 ImageProvider，保留解码后的图片
+    static final LinkedHashMap<String, ImageProvider<Object>>
+    _imageProviderCache =
+      LinkedHashMap<String, ImageProvider<Object>>(); // 缓存 ImageProvider，保留解码后的图片
 
   // Keyboard intents
   static final _nextIntent = NextPhotoIntent();
@@ -1384,7 +1382,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
     super.initState();
     debugPrint('[PhotoViewer] initState - Current cache status:');
     debugPrint(
-      '[PhotoViewer]   - Memory cache size: ${_cacheManager.memoryCacheSize}',
+      '[PhotoViewer]   - Memory cache size: ${OriginalPhotoManager.instance.memoryCacheSize}',
     );
     debugPrint(
       '[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}',
@@ -1403,7 +1401,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
   void dispose() {
     debugPrint('[PhotoViewer] dispose - Cache status before dispose:');
     debugPrint(
-      '[PhotoViewer]   - Memory cache size: ${_cacheManager.memoryCacheSize}',
+      '[PhotoViewer]   - Memory cache size: ${OriginalPhotoManager.instance.memoryCacheSize}',
     );
     debugPrint(
       '[PhotoViewer]   - ImageProvider cache size: ${_imageProviderCache.length}',
@@ -1418,12 +1416,13 @@ class _PhotoViewerState extends State<PhotoViewer> {
     super.dispose();
   }
 
-  Future<Uint8List> _loadOriginal(String path) {
-    debugPrint('[PhotoViewer] _loadOriginal called for: $path');
-    return _cacheManager.load(path, () async {
-      final bytes = await widget.api.photos.originalPhotoBytes(path);
-      return Uint8List.fromList(bytes);
-    });
+  Future<Uint8List> _loadOriginal(PhotoItem item) {
+    debugPrint('[PhotoViewer] _loadOriginal called for: ${item.path}');
+    return OriginalPhotoManager.instance.load(
+      item.path,
+      () => widget.api.photos.originalPhotoBytes(item.path),
+      stamp: item.timestamp,
+    );
   }
 
   void _prefetchAround(int idx) {
@@ -1436,7 +1435,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
       // 加载字节数据并预解码，需在使用 context 前检查 mounted
       unawaited(() async {
         try {
-          final bytes = await _loadOriginal(p.path);
+          final bytes = await _loadOriginal(p);
           if (!mounted) return;
           final provider = _getOrCreateImageProvider(p.path, bytes);
           debugPrint('[PhotoViewer] Precaching image for: ${p.path}');
@@ -1453,34 +1452,38 @@ class _PhotoViewerState extends State<PhotoViewer> {
     prefetch(idx - 1);
   }
 
-  ImageProvider _getOrCreateImageProvider(String path, Uint8List bytes) {
-    return _imageProviderCache.putIfAbsent(path, () {
-      debugPrint(
-        '[PhotoViewer] Creating ImageProvider for: $path (${bytes.length} bytes)',
-      );
+  ImageProvider<Object> _getOrCreateImageProvider(
+    String path,
+    Uint8List bytes,
+  ) {
+    final existing = _imageProviderCache.remove(path);
+    if (existing != null) {
+      _imageProviderCache[path] = existing;
+      return existing;
+    }
 
-      // 对大图片进行分辨率优化，按屏幕宽度缩放
-      final screenWidth =
-          MediaQuery.of(context).size.width *
-          MediaQuery.of(context).devicePixelRatio;
-      final maxDimension = screenWidth.toInt() * 2; // 2x 屏幕宽度
+    debugPrint(
+      '[PhotoViewer] Creating ImageProvider for: $path (${bytes.length} bytes)',
+    );
 
-      final baseProvider = MemoryImage(bytes);
+    final screenWidth =
+        MediaQuery.of(context).size.width *
+        MediaQuery.of(context).devicePixelRatio;
+    final maxDimension = screenWidth.toInt() * 2;
 
-      // 如果图片大于 5MB，使用 ResizeImage 优化解码
-      if (bytes.length > 5 * 1024 * 1024) {
-        debugPrint(
-          '[PhotoViewer] Using ResizeImage for large file: $path, maxDimension=$maxDimension',
-        );
-        return ResizeImage(
-          baseProvider,
-          width: maxDimension,
-          allowUpscaling: false,
-        );
-      }
+    final baseProvider = MemoryImage(bytes);
+    final ImageProvider<Object> provider = bytes.length > 5 * 1024 * 1024
+      ? ResizeImage(baseProvider, width: maxDimension, allowUpscaling: false)
+      : baseProvider;
 
-      return baseProvider;
-    });
+    _imageProviderCache[path] = provider;
+    while (_imageProviderCache.length > 40) {
+      final evicted = _imageProviderCache.keys.first;
+      _imageProviderCache.remove(evicted);
+      debugPrint('[PhotoViewer] Evicted ImageProvider for: $evicted');
+    }
+
+    return provider;
   }
 
   void _goTo(int idx) {
@@ -1651,7 +1654,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 }
 
                 // 同步检查内存缓存，命中则创建 ImageProvider
-                final cached = _cacheManager.getIfPresent(p.path);
+                final cached = OriginalPhotoManager.instance.getIfPresent(
+                  p.path,
+                );
                 if (cached != null) {
                   final provider = _getOrCreateImageProvider(p.path, cached);
                   return _buildInteractiveImage(
@@ -1673,7 +1678,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
                   Hero(
                     tag: heroTag,
                     child: FutureBuilder<Uint8List>(
-                      future: _loadOriginal(p.path),
+                      future: _loadOriginal(p),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState != ConnectionState.done) {
                           return const ColoredBox(
@@ -1736,7 +1741,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('正在保存...')));
-      final data = await _loadOriginal(photo.path);
+      final data = await _loadOriginal(photo);
       // 选择保存策略：移动端 -> 系统相册；桌面端 -> 用户图片目录
       if (Platform.isAndroid || Platform.isIOS) {
         // 使用 saver_gallery：Android 保存到 Pictures/TPhotos，且保留原始扩展名（避免 .png.jpg）
@@ -1879,19 +1884,4 @@ class SavePhotoIntent extends Intent {
 
 class DeletePhotoIntent extends Intent {
   const DeletePhotoIntent();
-}
-
-// 自定义的 CacheManager，针对 PhotoViewer 优化，处理 ImageProvider 清理
-class _PhotoViewerCacheManager extends MemoryCacheManager<String, Uint8List> {
-  @override
-  String get debugPrefix => 'PhotoViewer.CacheManager';
-
-  _PhotoViewerCacheManager() : super(memoryCapacity: 40);
-
-  @override
-  void onMemoryEvicted(String key) {
-    // 同时清理对应的 ImageProvider 缓存
-    _PhotoViewerState._imageProviderCache.remove(key);
-    debugPrint('[PhotoViewer] Evicted ImageProvider for: $key');
-  }
 }

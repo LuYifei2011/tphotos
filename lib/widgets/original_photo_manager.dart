@@ -3,28 +3,27 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ---------- ThumbnailManager: 并发限制 + 去重（in-flight dedupe）+ 内存 LRU + 磁盘缓存 ----------
-class ThumbnailManager {
-  ThumbnailManager._internal();
-  static final ThumbnailManager instance = ThumbnailManager._internal();
+class OriginalPhotoManager {
+  OriginalPhotoManager._internal();
+  static final OriginalPhotoManager instance = OriginalPhotoManager._internal();
 
-  int maxConcurrent = 6; // 默认值，将从设置中加载
+  int maxConcurrent = 4;
   int _running = 0;
   Completer<void>? _settingsCompleter;
 
   final Queue<_QueuedTask> _queue = Queue<_QueuedTask>();
   final Map<String, Future<Uint8List>> _inFlight = {};
 
-  final int _memoryCapacity = 200;
+  final int _memoryCapacity = 40;
   final LinkedHashMap<String, _MemoryEntry> _memoryCache = LinkedHashMap();
 
-  static const int _diskCapacity = 400;
+  static const int _diskCapacity = 120;
   Directory? _cacheDir;
   File? _indexFile;
   final Map<String, _DiskEntry> _diskIndex = {};
@@ -35,9 +34,7 @@ class ThumbnailManager {
     return _initFuture ??= _init();
   }
 
-  /// 确保设置只加载一次（线程安全）
   Future<void> _loadSettings() async {
-    // 如果已经在加载或已加载完成，复用同一个 Future
     if (_settingsCompleter != null) {
       return _settingsCompleter!.future;
     }
@@ -46,24 +43,24 @@ class ThumbnailManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final value = prefs.getInt('concurrent_requests') ?? 6;
-      maxConcurrent = value.clamp(1, 32);
+      maxConcurrent = value.clamp(1, 16);
       debugPrint(
-        '[ThumbCache] Loaded concurrent requests setting: $maxConcurrent',
+        '[OriginalCache] Loaded concurrent requests setting: $maxConcurrent',
       );
       _settingsCompleter!.complete();
     } catch (e) {
-      debugPrint('[ThumbCache] Failed to load settings: $e, using default: 6');
-      maxConcurrent = 6;
+      debugPrint(
+        '[OriginalCache] Failed to load settings: $e, using default: 4',
+      );
+      maxConcurrent = 4;
       _settingsCompleter!.complete();
     }
     return _settingsCompleter!.future;
   }
 
-  /// 更新并发数（从设置页面调用，立即生效）
   void updateMaxConcurrent(int value) {
-    maxConcurrent = value.clamp(1, 32);
-    debugPrint('[ThumbCache] Updated concurrent requests to: $maxConcurrent');
-    // 触发调度，如果有排队的任务可以立即开始执行
+    maxConcurrent = value.clamp(1, 16);
+    debugPrint('[OriginalCache] Updated concurrent requests to: $maxConcurrent');
     _schedule();
   }
 
@@ -78,7 +75,7 @@ class ThumbnailManager {
         }
       }
       baseDir ??= await getTemporaryDirectory();
-      final dir = Directory(p.join(baseDir.path, 'tphotos', 'thumb_cache'));
+      final dir = Directory(p.join(baseDir.path, 'tphotos', 'original_cache'));
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
@@ -105,9 +102,9 @@ class ThumbnailManager {
           _diskIndex.clear();
         }
       }
-      debugPrint('[ThumbCache] dir=${dir.path}, entries=${_diskIndex.length}');
+      debugPrint('[OriginalCache] dir=${dir.path}, entries=${_diskIndex.length}');
     } catch (e) {
-      debugPrint('[ThumbCache] init failed: $e');
+      debugPrint('[OriginalCache] init failed: $e');
       _cacheDir = null;
       _indexFile = null;
       _diskIndex.clear();
@@ -141,18 +138,16 @@ class ThumbnailManager {
           diskEntry.lastAccess = DateTime.now().millisecondsSinceEpoch;
           _putToMemory(key, bytes, stamp ?? diskEntry.stamp);
           _scheduleIndexSave();
-          debugPrint('[ThumbCache] disk HIT $key');
+          debugPrint('[OriginalCache] disk HIT $key');
           return bytes;
         } catch (e) {
-          debugPrint('[ThumbCache] disk read failed for $key: $e');
+          debugPrint('[OriginalCache] disk read failed for $key: $e');
           await _removeDiskEntry(key, scheduleSave: true);
         }
       } else if (diskEntry.stamp != stamp) {
-        debugPrint('[ThumbCache] disk stale stamp, evict $key');
+        debugPrint('[OriginalCache] disk stale stamp, evict $key');
         await _removeDiskEntry(key, scheduleSave: true);
       }
-    } else {
-      debugPrint('[ThumbCache] disk MISS (no index) $key');
     }
 
     final inFlight = _inFlight[key];
@@ -192,6 +187,46 @@ class ThumbnailManager {
     });
   }
 
+  Uint8List? getIfPresent(String key) {
+    final mem = _memoryCache.remove(key);
+    if (mem == null) return null;
+    _memoryCache[key] = mem;
+    return mem.bytes;
+  }
+
+  int get memoryCacheSize => _memoryCache.length;
+
+  Future<int> clearDiskCache() async {
+    await _ensureInitialized();
+    if (_cacheDir == null) return 0;
+
+    final keys = _diskIndex.keys.toList();
+    for (final key in keys) {
+      await _removeDiskEntry(key, scheduleSave: false);
+    }
+
+    int cleanedOrphanFiles = 0;
+    try {
+      await for (final entity in _cacheDir!.list()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (name == 'index.json') continue;
+        if (!name.endsWith('.bin')) continue;
+        try {
+          await entity.delete();
+          cleanedOrphanFiles++;
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    _diskIndex.clear();
+    _scheduleIndexSave();
+    debugPrint(
+      '[OriginalCache] cleared disk cache, entries=${keys.length}, orphanFiles=$cleanedOrphanFiles',
+    );
+    return keys.length + cleanedOrphanFiles;
+  }
+
   void _putToMemory(String key, Uint8List bytes, int? stamp) {
     _memoryCache.remove(key);
     _memoryCache[key] = _MemoryEntry(bytes, stamp);
@@ -214,7 +249,7 @@ class ThumbnailManager {
       await _evictOverflow();
       _scheduleIndexSave();
     } catch (e) {
-      debugPrint('Thumbnail disk write failed for $key: $e');
+      debugPrint('Original disk write failed for $key: $e');
     }
   }
 
@@ -270,7 +305,7 @@ class ThumbnailManager {
         };
         await _indexFile!.writeAsString(jsonEncode(data), flush: true);
       } catch (e) {
-        debugPrint('Thumbnail index save failed: $e');
+        debugPrint('Original index save failed: $e');
       }
     });
   }
@@ -286,8 +321,6 @@ class ThumbnailManager {
     }
   }
 
-  // Move a queued task to the front so the most recently requested (visible)
-  // thumbnails run before stale ones.
   void _promoteQueuedTask(String key) {
     for (final task in _queue.toList()) {
       if (task.key == key) {
@@ -297,39 +330,6 @@ class ThumbnailManager {
       }
     }
   }
-
-  Future<int> clearDiskCache() async {
-    await _ensureInitialized();
-    if (_cacheDir == null) return 0;
-
-    final keys = _diskIndex.keys.toList();
-    for (final key in keys) {
-      await _removeDiskEntry(key, scheduleSave: false);
-    }
-
-    int cleanedOrphanFiles = 0;
-    try {
-      await for (final entity in _cacheDir!.list()) {
-        if (entity is! File) continue;
-        final name = p.basename(entity.path);
-        if (name == 'index.json') continue;
-        if (!name.endsWith('.bin')) continue;
-        try {
-          await entity.delete();
-          cleanedOrphanFiles++;
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    _diskIndex.clear();
-    _scheduleIndexSave();
-    debugPrint(
-      '[ThumbCache] cleared disk cache, entries=${keys.length}, orphanFiles=$cleanedOrphanFiles',
-    );
-    return keys.length + cleanedOrphanFiles;
-  }
-
-  void clearMemoryCache() => _memoryCache.clear();
 }
 
 class _MemoryEntry {
