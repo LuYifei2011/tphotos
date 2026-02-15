@@ -48,8 +48,7 @@ class FoldersPage extends StatefulWidget {
   final TosAPI api;
   final FolderBackHandler? backHandler;
 
-  const FoldersPage({Key? key, required this.api, this.backHandler})
-    : super(key: key);
+  const FoldersPage({super.key, required this.api, this.backHandler});
 
   @override
   State<FoldersPage> createState() => _FoldersPageState();

@@ -90,7 +90,7 @@ class CollectionTile extends StatelessWidget {
   final BoxFit fit;
 
   const CollectionTile({
-    Key? key,
+    super.key,
     required this.item,
     this.shape = CollectionShape.square,
     this.size = 120.0,
@@ -99,7 +99,7 @@ class CollectionTile extends StatelessWidget {
     this.onLongPress,
     this.borderRadius = 8.0,
     this.fit = BoxFit.cover,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +109,7 @@ class CollectionTile extends StatelessWidget {
       borderRadius: shape == CollectionShape.circle
           ? BorderRadius.circular(size / 2)
           : BorderRadius.circular(borderRadius),
-      child: Container(
+      child: SizedBox(
         width: size,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -266,7 +266,7 @@ class CollectionGrid extends StatelessWidget {
   final double tileSize;
 
   const CollectionGrid({
-    Key? key,
+    super.key,
     required this.items,
     this.crossAxisCount = 3,
     this.shape = CollectionShape.square,
@@ -275,7 +275,7 @@ class CollectionGrid extends StatelessWidget {
     this.onLongPress,
     this.spacing = 16.0,
     this.tileSize = 120.0,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
