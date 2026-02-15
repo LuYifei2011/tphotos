@@ -9,6 +9,7 @@ import '../widgets/adaptive_scrollbar.dart';
 import '../widgets/folder_thumbnail.dart';
 import '../widgets/photo_grid.dart';
 import '../widgets/thumbnail_manager.dart';
+import '../widgets/media_viewer_helper.dart';
 
 /// 文件夹内容缓存
 class _FolderContentCache {
@@ -423,8 +424,13 @@ class _FoldersPageState extends State<FoldersPage> {
         ),
         PhotoGrid(
           items: _photos,
-          onPhotoTap: (p) {
-            // TODO: 打开照片详情
+          onPhotoTap: (item) {
+            MediaViewerHelper.openMediaViewer(
+              context,
+              items: _photos,
+              initialIndex: _photos.indexOf(item),
+              api: widget.api,
+            );
           },
           thumbNotifiers: _thumbNotifiers,
           ensureThumbLoaded: (item) => _ensureThumbLoaded(item.thumbnailPath),
