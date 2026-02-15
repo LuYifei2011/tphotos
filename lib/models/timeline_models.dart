@@ -58,8 +58,11 @@ class TimelineResponse {
       isLogin: json['is_login'] as bool? ?? false,
       code: json['code'] as bool? ?? false,
       msg: json['msg'] as String? ?? '',
-      data: (json['data'] as List<dynamic>?)
-              ?.map((item) => TimelineItem.fromJson(item as Map<String, dynamic>))
+      data:
+          (json['data'] as List<dynamic>?)
+              ?.map(
+                (item) => TimelineItem.fromJson(item as Map<String, dynamic>),
+              )
               .toList() ??
           [],
       time: (json['time'] as num?)?.toDouble() ?? 0.0,

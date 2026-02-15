@@ -316,17 +316,16 @@ class _TimelineViewState extends State<TimelineView> {
     if (_timeline.isEmpty) {
       return _buildStatusView(
         icon: Icons.photo,
-        iconColor:
-            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+        iconColor: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.3),
         message: widget.emptyLabel,
       );
     }
 
     final scrollChild = CustomScrollView(
       controller: _scrollController,
-      slivers: [
-        for (var item in _timeline) ..._buildDateSlivers(item),
-      ],
+      slivers: [for (var item in _timeline) ..._buildDateSlivers(item)],
     );
 
     return Stack(
@@ -431,14 +430,14 @@ class _TimelineViewState extends State<TimelineView> {
                 box ??= ctx.findRenderObject() as RenderBox?;
                 if (box == null) return;
                 final local = box!.globalToLocal(globalPosition);
-                final fraction =
-                    (local.dy / maxHeight).clamp(0.0, 1.0).toDouble();
+                final fraction = (local.dy / maxHeight)
+                    .clamp(0.0, 1.0)
+                    .toDouble();
                 _jumpToScrollFraction(fraction);
               }
 
               return Align(
-                alignment:
-                    Alignment(1.0, alignmentY.isNaN ? -1 : alignmentY),
+                alignment: Alignment(1.0, alignmentY.isNaN ? -1 : alignmentY),
                 child: Padding(
                   padding: const EdgeInsets.only(right: 36.0),
                   child: GestureDetector(
@@ -452,8 +451,9 @@ class _TimelineViewState extends State<TimelineView> {
                     onPanUpdate: _isMobile
                         ? (d) => handleDrag(d.globalPosition)
                         : null,
-                    onPanEnd:
-                        _isMobile ? (_) => _scheduleHideGroupLabel() : null,
+                    onPanEnd: _isMobile
+                        ? (_) => _scheduleHideGroupLabel()
+                        : null,
                     onTapDown: _isMobile
                         ? (d) {
                             _showGroupLabelNow();
