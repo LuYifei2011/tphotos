@@ -151,9 +151,9 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final removed = await OriginalPhotoManager.instance.clearDiskCache();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已清理原图磁盘缓存：$removed 项')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已清理原图磁盘缓存：$removed 项')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -172,9 +172,9 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final removed = await ThumbnailManager.instance.clearDiskCache();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已清理缩略图磁盘缓存：$removed 项')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已清理缩略图磁盘缓存：$removed 项')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

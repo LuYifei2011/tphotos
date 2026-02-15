@@ -1366,9 +1366,12 @@ class _PhotoViewerState extends State<PhotoViewer> {
       {}; // 每个页面的变换控制器
   int _pointerCount = 0; // 屏幕上的手指数量
 
-    static final LinkedHashMap<String, ImageProvider<Object>>
-    _imageProviderCache =
-      LinkedHashMap<String, ImageProvider<Object>>(); // 缓存 ImageProvider，保留解码后的图片
+  static final LinkedHashMap<String, ImageProvider<Object>>
+  _imageProviderCache =
+      LinkedHashMap<
+        String,
+        ImageProvider<Object>
+      >(); // 缓存 ImageProvider，保留解码后的图片
 
   // Keyboard intents
   static final _nextIntent = NextPhotoIntent();
@@ -1473,8 +1476,8 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
     final baseProvider = MemoryImage(bytes);
     final ImageProvider<Object> provider = bytes.length > 5 * 1024 * 1024
-      ? ResizeImage(baseProvider, width: maxDimension, allowUpscaling: false)
-      : baseProvider;
+        ? ResizeImage(baseProvider, width: maxDimension, allowUpscaling: false)
+        : baseProvider;
 
     _imageProviderCache[path] = provider;
     while (_imageProviderCache.length > 40) {

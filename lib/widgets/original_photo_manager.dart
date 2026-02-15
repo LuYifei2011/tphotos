@@ -60,7 +60,9 @@ class OriginalPhotoManager {
 
   void updateMaxConcurrent(int value) {
     maxConcurrent = value.clamp(1, 16);
-    debugPrint('[OriginalCache] Updated concurrent requests to: $maxConcurrent');
+    debugPrint(
+      '[OriginalCache] Updated concurrent requests to: $maxConcurrent',
+    );
     _schedule();
   }
 
@@ -102,7 +104,9 @@ class OriginalPhotoManager {
           _diskIndex.clear();
         }
       }
-      debugPrint('[OriginalCache] dir=${dir.path}, entries=${_diskIndex.length}');
+      debugPrint(
+        '[OriginalCache] dir=${dir.path}, entries=${_diskIndex.length}',
+      );
     } catch (e) {
       debugPrint('[OriginalCache] init failed: $e');
       _cacheDir = null;
