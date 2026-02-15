@@ -2,6 +2,7 @@ import 'tos_client.dart';
 import '../models/timeline_models.dart';
 import '../models/photo_list_models.dart';
 import '../models/folder_models.dart';
+import '../models/album_models.dart';
 
 class PhotosAPI {
   final TosClient _client;
@@ -171,6 +172,70 @@ class PhotosAPI {
     };
     final response = await _client.post(
       '/v2/proxy/TerraPhotos/PhotoList',
+      json: body,
+    );
+    return PhotoListResponse.fromJson(response);
+  }
+
+  /// 获取相册列表
+  Future<AlbumListResponse> albumList() async {
+    final response = await _client.get(
+      '/v2/proxy/TerraPhotos/AlbumList',
+    );
+    return AlbumListResponse.fromJson(response);
+  }
+
+  /// 获取相册时间线
+  ///
+  /// [id] 相册 ID
+  /// [timelineType] 时间线类型（1: 按月，2: 按日等）
+  /// [order] 排序方向（"asc": 升序，"desc": 降序）
+  Future<AlbumTimelineResponse> albumTimeline({
+    required int id,
+    int timelineType = 2,
+    String order = 'desc',
+  }) async {
+    final params = <String, String>{
+      'id': id.toString(),
+      'timeline_type': timelineType.toString(),
+      'order': order,
+    };
+    final response = await _client.get(
+      '/v2/proxy/TerraPhotos/AlbumTimeline',
+      params: params,
+    );
+    return AlbumTimelineResponse.fromJson(response);
+  }
+
+  /// 获取相册中的照片列表
+  ///
+  /// [name] 相册名称
+  /// [startTime] 开始时间戳
+  /// [endTime] 结束时间戳
+  /// [pageIndex] 页码
+  /// [pageSize] 每页大小
+  /// [timelineType] 时间线类型
+  /// [order] 排序方向
+  Future<PhotoListResponse> photosInAlbum({
+    required String name,
+    required int startTime,
+    required int endTime,
+    int pageIndex = 1,
+    int pageSize = 150,
+    int timelineType = 2,
+    String order = 'desc',
+  }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'start_time': startTime,
+      'end_time': endTime,
+      'page_index': pageIndex,
+      'page_size': pageSize,
+      'timeline_type': timelineType,
+      'order': order,
+    };
+    final response = await _client.post(
+      '/v2/proxy/TerraPhotos/PhotosInAlbum',
       json: body,
     );
     return PhotoListResponse.fromJson(response);

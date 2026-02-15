@@ -21,6 +21,7 @@ import '../widgets/original_photo_manager.dart';
 import '../widgets/thumbnail_manager.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
+import 'albums_page.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -377,15 +378,18 @@ class _PhotosPageState extends State<PhotosPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _drawerOpen = false;
   final FolderBackHandler _folderBackHandler = FolderBackHandler();
+  final AlbumBackHandler _albumBackHandler = AlbumBackHandler();
 
   @override
   Widget build(BuildContext context) {
     // 侧栏打开时拦截返回并手动关闭侧栏，避免路由级返回抢占
     // 文件夹子目录时拦截返回并先回到上一级目录
+    // 相册子页面时拦截返回并先回到相册列表
     // 照片主页允许系统返回（退出应用）
     final canPop =
         !_drawerOpen &&
         !(_section == HomeSection.folders && _folderBackHandler.canGoBack) &&
+        !(_section == HomeSection.albums && _albumBackHandler.canGoBack) &&
         _section == HomeSection.photos;
 
     return PopScope(
@@ -401,6 +405,12 @@ class _PhotosPageState extends State<PhotosPage> {
         // 先检查文件夹子页面是否需要返回上一级
         if (_section == HomeSection.folders && _folderBackHandler.canGoBack) {
           _folderBackHandler.goBack();
+          return;
+        }
+
+        // 检查相册子页面是否需要返回相册列表
+        if (_section == HomeSection.albums && _albumBackHandler.canGoBack) {
+          _albumBackHandler.goBack();
           return;
         }
 
@@ -642,6 +652,9 @@ class _PhotosPageState extends State<PhotosPage> {
     }
     if (_section == HomeSection.folders) {
       return FoldersPage(api: widget.api, backHandler: _folderBackHandler);
+    }
+    if (_section == HomeSection.albums) {
+      return AlbumsPage(api: widget.api, backHandler: _albumBackHandler);
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
