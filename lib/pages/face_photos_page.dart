@@ -10,7 +10,12 @@ class FacePhotosPage extends StatelessWidget {
   final int space;
   final FaceIndexItem face;
 
-  const FacePhotosPage({super.key, required this.api, required this.space, required this.face});
+  const FacePhotosPage({
+    super.key,
+    required this.api,
+    required this.space,
+    required this.face,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +30,12 @@ class FacePhotosPage extends StatelessWidget {
             ),
             Text(
               '${face.count} 张照片',
-              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -43,7 +53,12 @@ class FacePhotosPage extends StatelessWidget {
   }
 
   Future<List<TimelineItem>> _loadTimeline() async {
-    final res = await api.face.faceTimeline(space: space, faceId: face.indexId, timelineType: 2, order: 'desc');
+    final res = await api.face.faceTimeline(
+      space: space,
+      faceId: face.indexId,
+      timelineType: 2,
+      order: 'desc',
+    );
     return res.data;
   }
 
