@@ -192,6 +192,14 @@ class ThumbnailManager {
     });
   }
 
+  /// 同步查询内存缓存，命中返回字节数据，未命中返回 null
+  Uint8List? getIfPresent(String key) {
+    final mem = _memoryCache.remove(key);
+    if (mem == null) return null;
+    _memoryCache[key] = mem; // move to end (LRU)
+    return mem.bytes;
+  }
+
   void _putToMemory(String key, Uint8List bytes, int? stamp) {
     _memoryCache.remove(key);
     _memoryCache[key] = _MemoryEntry(bytes, stamp);

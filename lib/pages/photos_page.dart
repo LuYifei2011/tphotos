@@ -14,6 +14,7 @@ import '../api/tos_api.dart';
 import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
 import '../widgets/original_photo_manager.dart';
+import '../widgets/thumbnail_manager.dart';
 import '../widgets/timeline_view.dart';
 import 'settings_page.dart';
 import 'folders_page.dart';
@@ -893,6 +894,62 @@ class _PhotoViewerState extends State<PhotoViewer> {
     return provider;
   }
 
+  /// 原图未加载完成时，用缩略图占位 + 加载指示器
+  Widget _buildThumbnailPlaceholder(PhotoItem item) {
+    // 1. 先尝试同步从内存缓存取缩略图
+    final cachedThumb = ThumbnailManager.instance.getIfPresent(
+      item.thumbnailPath,
+    );
+    if (cachedThumb != null) {
+      return _thumbnailWithSpinner(cachedThumb);
+    }
+
+    // 2. 异步加载缩略图
+    return FutureBuilder<Uint8List>(
+      future: ThumbnailManager.instance.load(
+        item.thumbnailPath,
+        () => widget.api.photos.thumbnailBytes(item.thumbnailPath),
+        stamp: item.timestamp,
+      ),
+      builder: (context, thumbSnap) {
+        if (thumbSnap.hasData) {
+          return _thumbnailWithSpinner(thumbSnap.data!);
+        }
+        // 缩略图也还没加载好，显示纯黑底 + 转圈
+        return const ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 缩略图 + 半透明加载指示器叠加
+  Widget _thumbnailWithSpinner(Uint8List thumbBytes) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Image.memory(
+          thumbBytes,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          width: double.infinity,
+          height: double.infinity,
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            shape: BoxShape.circle,
+          ),
+          padding: const EdgeInsets.all(12),
+          child: const CircularProgressIndicator(color: Colors.white),
+        ),
+      ],
+    );
+  }
+
   void _goTo(int idx) {
     if (idx < 0 || idx >= widget.photos.length) return;
     _controller.animateToPage(
@@ -1088,14 +1145,8 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       future: _loadOriginal(p),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState != ConnectionState.done) {
-                          return const ColoredBox(
-                            color: Colors.black,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                              ),
-                            ),
-                          );
+                          // 原图尚未加载完成，使用缩略图占位
+                          return _buildThumbnailPlaceholder(p);
                         }
                         if (snapshot.hasError || snapshot.data == null) {
                           return Center(
