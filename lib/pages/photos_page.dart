@@ -329,7 +329,7 @@ class _PhotosPageState extends State<PhotosPage> {
     if (_section == HomeSection.places) {
       return PlacePage(api: widget.api, space: _space);
     }
-    return Center(child: Text('TODO: ${_titleForSection(_section)}'));
+    return Center(child: Text('该页面尚未实现哦~\uD83D\uDE42'));
   }
 
   Future<List<TimelineItem>> _loadPhotoTimeline({required int fileType}) async {
