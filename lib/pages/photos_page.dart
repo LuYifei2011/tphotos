@@ -918,9 +918,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
         // 缩略图也还没加载好，显示纯黑底 + 转圈
         return const ColoredBox(
           color: Colors.black,
-          child: Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          ),
+          child: Center(child: CircularProgressIndicator(color: Colors.white)),
         );
       },
     );
