@@ -5,6 +5,7 @@ import 'online_api.dart';
 import 'ddns_api.dart';
 import 'face_api.dart';
 import 'scene_api.dart';
+import 'geo_api.dart';
 
 class TosAPI {
   final TosClient _client;
@@ -14,6 +15,7 @@ class TosAPI {
   late final DdnsAPI ddns;
   late final FaceAPI face;
   late final SceneAPI scene;
+  late final GeoAPI geo;
 
   TosAPI(String baseUrl) : _client = TosClient(baseUrl) {
     auth = AuthAPI(_client);
@@ -22,6 +24,7 @@ class TosAPI {
     ddns = DdnsAPI(_client);
     face = FaceAPI(_client);
     scene = SceneAPI(_client);
+    geo = GeoAPI(_client);
   }
 
   /// Base URL of current server, used for composing absolute resource URLs.

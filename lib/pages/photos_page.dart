@@ -20,6 +20,7 @@ import 'folders_page.dart';
 import 'albums_page.dart';
 import 'face_page.dart';
 import 'scene_page.dart';
+import 'place_page.dart';
 
 // 主页各栏目
 enum HomeSection {
@@ -324,6 +325,9 @@ class _PhotosPageState extends State<PhotosPage> {
     }
     if (_section == HomeSection.scenes) {
       return ScenePage(api: widget.api, space: _space);
+    }
+    if (_section == HomeSection.places) {
+      return PlacePage(api: widget.api, space: _space);
     }
     return Center(child: Text('TODO: ${_titleForSection(_section)}'));
   }
