@@ -58,9 +58,12 @@ class _LoginPageState extends State<LoginPage> {
       prefs = await SharedPreferences.getInstance();
       final fallbackDdns = prefs.getString('tnas_ddns_url');
       final tnasOnlineServer = prefs.getString('tnas_online_url');
-      final enableTptConnection = prefs.getBool('enable_tpt_connection') ?? false;
+      final enableTptConnection =
+          prefs.getBool('enable_tpt_connection') ?? false;
       final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
-      final tptServer = enableTptConnection ? 'https://localhost:${savedHttpsPort + 20000}' : null;
+      final tptServer = enableTptConnection
+          ? 'https://localhost:${savedHttpsPort + 20000}'
+          : null;
       final endpoints = buildLoginEndpoints(
         primaryServer: primaryServer,
         tptServer: tptServer,
@@ -72,7 +75,11 @@ class _LoginPageState extends State<LoginPage> {
       Future<Map<String, dynamic>> attempt(LoginEndpoint endpoint) async {
         final currentApi = TosAPI(endpoint.baseUrl);
         try {
-          final response = await currentApi.auth.login(_userCtrl.text.trim(), _passCtrl.text, keepLogin: _remember);
+          final response = await currentApi.auth.login(
+            _userCtrl.text.trim(),
+            _passCtrl.text,
+            keepLogin: _remember,
+          );
           api = currentApi;
           return response;
         } catch (e) {
@@ -170,7 +177,10 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _error = '登录失败: $buffer');
   }
 
-  Future<void> _fetchAndStoreHttpsPort(TosAPI api, SharedPreferences prefs) async {
+  Future<void> _fetchAndStoreHttpsPort(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
     try {
       final httpsPort = await api.ddns.httpsPort();
       await prefs.setInt('https_port', httpsPort);
@@ -179,7 +189,10 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _fetchAndStoreOnlineUrl(TosAPI api, SharedPreferences prefs) async {
+  Future<void> _fetchAndStoreOnlineUrl(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
     try {
       final url = await api.online.nodeUrl();
       if (url != null && url.isNotEmpty) {
@@ -190,7 +203,10 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _fetchAndStoreDdnsUrl(TosAPI api, SharedPreferences prefs) async {
+  Future<void> _fetchAndStoreDdnsUrl(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
     try {
       final url = await api.ddns.ddnsUrl();
       if (url != null && url.isNotEmpty) {
@@ -227,14 +243,18 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   TextFormField(
                     controller: _serverCtrl,
-                    decoration: const InputDecoration(labelText: '服务器地址（含协议，如 http://192.168.2.2:8181）'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? '请输入服务器地址' : null,
+                    decoration: const InputDecoration(
+                      labelText: '服务器地址（含协议，如 http://192.168.2.2:8181）',
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? '请输入服务器地址' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _userCtrl,
                     decoration: const InputDecoration(labelText: '用户名'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? '请输入用户名' : null,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? '请输入用户名' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -242,8 +262,13 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: InputDecoration(
                       labelText: '密码',
                       suffixIcon: IconButton(
-                        icon: Icon(_showPassword ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setState(() => _showPassword = !_showPassword),
+                        icon: Icon(
+                          _showPassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () =>
+                            setState(() => _showPassword = !_showPassword),
                       ),
                     ),
                     obscureText: !_showPassword,
@@ -252,7 +277,11 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Checkbox(value: _remember, onChanged: (v) => setState(() => _remember = v ?? false)),
+                      Checkbox(
+                        value: _remember,
+                        onChanged: (v) =>
+                            setState(() => _remember = v ?? false),
+                      ),
                       const Text('记住我并自动登录'),
                     ],
                   ),
@@ -265,7 +294,11 @@ class _LoginPageState extends State<LoginPage> {
                     child: FilledButton(
                       onPressed: _loading ? null : _onLogin,
                       child: _loading
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Text('登录'),
                     ),
                   ),
