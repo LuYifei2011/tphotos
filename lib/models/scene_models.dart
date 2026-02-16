@@ -16,10 +16,7 @@ class SceneExhibition {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'path': path,
-      'thumbnail_path': thumbnailPath,
-    };
+    return {'path': path, 'thumbnail_path': thumbnailPath};
   }
 }
 
@@ -29,7 +26,11 @@ class SceneItem {
   final int count;
   final List<SceneExhibition> exhibition;
 
-  SceneItem({required this.label, required this.count, required this.exhibition});
+  SceneItem({
+    required this.label,
+    required this.count,
+    required this.exhibition,
+  });
 
   factory SceneItem.fromJson(Map<String, dynamic> json) {
     return SceneItem(
@@ -67,10 +68,7 @@ class SceneIndexData {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'total': total,
-      'scene': scene.map((e) => e.toJson()).toList(),
-    };
+    return {'total': total, 'scene': scene.map((e) => e.toJson()).toList()};
   }
 }
 
@@ -99,7 +97,9 @@ class SceneIndexResponse {
       isLogin: json['is_login'] as bool? ?? false,
       code: json['code'] as bool? ?? false,
       msg: json['msg'] as String? ?? '',
-      data: SceneIndexData.fromJson(json['data'] as Map<String, dynamic>? ?? {}),
+      data: SceneIndexData.fromJson(
+        json['data'] as Map<String, dynamic>? ?? {},
+      ),
       time: (json['time'] as num?)?.toDouble() ?? 0.0,
       codeNum: json['code_num'] as int? ?? 0,
       codeMsg: json['code_msg'] as String? ?? '',

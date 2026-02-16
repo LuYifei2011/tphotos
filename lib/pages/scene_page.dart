@@ -91,7 +91,10 @@ class _ScenePageState extends State<ScenePage> {
   }
 
   ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
-    return _thumbNotifiers.putIfAbsent(path, () => ValueNotifier<Uint8List?>(null));
+    return _thumbNotifiers.putIfAbsent(
+      path,
+      () => ValueNotifier<Uint8List?>(null),
+    );
   }
 
   String _coverPathFor(SceneItem scene) {
@@ -121,11 +124,8 @@ class _ScenePageState extends State<ScenePage> {
   void _onTapScene(SceneItem scene) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => ScenePhotosPage(
-          api: widget.api,
-          space: widget.space,
-          scene: scene,
-        ),
+        builder: (context) =>
+            ScenePhotosPage(api: widget.api, space: widget.space, scene: scene),
       ),
     );
   }
@@ -146,7 +146,9 @@ class _ScenePageState extends State<ScenePage> {
           if (_error != null) {
             return _buildStatus(
               icon: Icons.error_outline,
-              iconColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+              iconColor: Theme.of(
+                context,
+              ).colorScheme.error.withValues(alpha: 0.5),
               message: _error!,
               onRetry: _load,
             );
@@ -155,7 +157,9 @@ class _ScenePageState extends State<ScenePage> {
           if (_scenes.isEmpty) {
             return _buildStatus(
               icon: Icons.landscape_outlined,
-              iconColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+              iconColor: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.3),
               message: '暂无场景数据',
             );
           }
