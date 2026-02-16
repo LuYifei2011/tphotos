@@ -8,6 +8,30 @@ class FaceAPI {
 
   FaceAPI(this._client);
 
+  /// 修改人物索引（目前用于改名）
+  Future<void> editIndexName({
+    required int id,
+    required int space,
+    required String indexName,
+    int type = 1,
+  }) async {
+    final body = <String, dynamic>{
+      'id': id,
+      'type': type,
+      'index_name': indexName,
+      'space': space,
+    };
+
+    final response = await _client.post(
+      '/v2/proxy/TerraPhotos/EditIndex',
+      json: body,
+    );
+
+    if (response['code'] != true) {
+      throw APIError(0, response['msg']?.toString() ?? '编辑失败', response['data']);
+    }
+  }
+
   /// 获取人物索引列表
   /// [space] 空间 ID（1: 个人空间, 2: 公共空间）
   /// [pageIndex] 页码（从 1 开始）

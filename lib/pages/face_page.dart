@@ -126,6 +126,97 @@ class _FacePageState extends State<FacePage> {
     );
   }
 
+  Future<void> _onLongPressFace(FaceIndexItem face) async {
+    final newName = await _showRenameDialog(face);
+    if (newName == null) return;
+
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty || trimmed == face.name) return;
+
+    await _updateFaceName(face, trimmed);
+  }
+
+  Future<void> _updateFaceName(FaceIndexItem face, String newName) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await widget.api.face.editIndexName(
+        id: face.id,
+        space: widget.space,
+        indexName: newName,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _faces = _faces
+            .map(
+              (item) => item.id == face.id
+                  ? FaceIndexItem(
+                      id: item.id,
+                      indexId: item.indexId,
+                      name: newName,
+                      collectionType: item.collectionType,
+                      cover: item.cover,
+                      count: item.count,
+                      exhibition: item.exhibition,
+                    )
+                  : item,
+            )
+            .toList();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('名称已更新')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('修改失败: $e')),
+        );
+      }
+    } finally {
+      if (navigator.mounted) {
+        navigator.pop();
+      }
+    }
+  }
+
+  Future<String?> _showRenameDialog(FaceIndexItem face) {
+    final controller = TextEditingController(text: face.name);
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('修改人物名称'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: '名称'),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (value) => Navigator.of(context).pop(value),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -184,6 +275,7 @@ class _FacePageState extends State<FacePage> {
               defaultIcon: Icons.person,
               shape: CollectionShape.circle,
               onTap: () => _onTapFace(face),
+              onLongPress: () => _onLongPressFace(face),
             );
           },
         ),
