@@ -28,7 +28,11 @@ class FaceAPI {
     );
 
     if (response['code'] != true) {
-      throw APIError(0, response['msg']?.toString() ?? '编辑失败', response['data']);
+      throw APIError(
+        0,
+        response['msg']?.toString() ?? '编辑失败',
+        response['data'],
+      );
     }
   }
 
