@@ -103,7 +103,7 @@ class _FacePageState extends State<FacePage> {
       notifier.value = bytes;
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('人脸封面加载失败: $thumbnailPath, $e');
+        debugPrint('人物封面加载失败: $thumbnailPath, $e');
       }
     }
   }
@@ -138,7 +138,7 @@ class _FacePageState extends State<FacePage> {
         iconColor: Theme.of(
           context,
         ).colorScheme.onSurface.withValues(alpha: 0.3),
-        message: '暂无人脸数据',
+        message: '暂无人物数据',
       );
     }
 

@@ -8,7 +8,7 @@ class FaceAPI {
 
   FaceAPI(this._client);
 
-  /// 获取人脸索引列表
+  /// 获取人物索引列表
   /// [space] 空间 ID（1: 个人空间, 2: 公共空间）
   /// [pageIndex] 页码（从 1 开始）
   /// [pageSize] 每页数量
@@ -29,7 +29,7 @@ class FaceAPI {
     return FaceIndexResponse.fromJson(response);
   }
 
-  /// 获取人脸缩略图字节数据
+  /// 获取人物缩略图字节数据
   Future<List<int>> faceThumbnailBytes(String rawPath) async {
     final encodedPath = Uri.encodeComponent(rawPath);
     final path = '/v2/proxy/TerraPhotos/Thumbnail/$encodedPath';
@@ -37,7 +37,7 @@ class FaceAPI {
     return bytes;
   }
 
-  /// 获取某个人脸的时间线
+  /// 获取某个人物的时间线
   /// [space] 空间 ID
   /// [faceId] 人物 ID
   /// [timelineType] 时间线类型（1: 年, 2: 日）
@@ -61,7 +61,7 @@ class FaceAPI {
     return TimelineResponse.fromJson(response);
   }
 
-  /// 获取某个人脸在特定时间的照片列表
+  /// 获取某个人物在特定时间的照片列表
   /// [space] 空间 ID
   /// [faceId] 人物 ID
   /// [startTime] 开始时间戳
@@ -97,7 +97,7 @@ class FaceAPI {
     return PhotoListResponse.fromJson(response);
   }
 
-  /// 加载某个人脸在特定时间的所有照片（自动分页）
+  /// 加载某个人物在特定时间的所有照片（自动分页）
   Future<PhotoListData> faceListAll({
     required int space,
     required String faceId,

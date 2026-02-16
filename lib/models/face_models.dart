@@ -1,7 +1,7 @@
 import 'photo_list_models.dart';
 import 'timeline_models.dart';
 
-/// 人脸展示项（封面照片）
+/// 人物展示项（封面照片）
 class FaceExhibition {
   final String path;
   final String thumbnailPath;
@@ -20,7 +20,7 @@ class FaceExhibition {
   }
 }
 
-/// 人脸索引项
+/// 人物索引项
 class FaceIndexItem {
   final int id;
   final String indexId;
@@ -67,7 +67,7 @@ class FaceIndexItem {
   }
 }
 
-/// 人脸索引列表数据
+/// 人物索引列表数据
 class FaceIndexData {
   final int total;
   final List<FaceIndexItem> faceIndexList;
@@ -91,7 +91,7 @@ class FaceIndexData {
   }
 }
 
-/// 人脸索引列表响应
+/// 人物索引列表响应
 class FaceIndexResponse {
   final bool isLogin;
   final bool code;
@@ -124,8 +124,8 @@ class FaceIndexResponse {
   }
 }
 
-/// 人脸时间线响应（复用 TimelineResponse）
+/// 人物时间线响应（复用 TimelineResponse）
 typedef FaceTimelineResponse = TimelineResponse;
 
-/// 人脸照片列表响应（复用 PhotoListResponse）
+/// 人物照片列表响应（复用 PhotoListResponse）
 typedef FacePhotoListResponse = PhotoListResponse;
