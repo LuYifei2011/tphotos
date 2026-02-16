@@ -5,6 +5,19 @@ class DdnsAPI {
 
   DdnsAPI(this._client);
 
+  /// Fetch HTTPS port from routine network config.
+  Future<int> httpsPort() async {
+    final response = await _client.get('/v2/networkSet/GetRoutineSetConf');
+    final dynamic value = response['data']?['https_port'];
+    if (value is int) {
+      return value;
+    }
+    if (value is String) {
+      return int.tryParse(value) ?? 5443;
+    }
+    return 5443;
+  }
+
   /// Fetch DDNS host URL from /v2/ddns/; returns https://{host_name}:{port} when available.
   Future<String?> ddnsUrl() async {
     final response = await _client.get('/v2/ddns/');
@@ -29,11 +42,7 @@ class DdnsAPI {
       return null;
     }
 
-    final httpsPort =
-        (await _client.get(
-          '/v2/networkSet/GetRoutineSetConf',
-        ))['data']?['https_port'] ??
-        5443;
+    final httpsPort = await this.httpsPort();
 
     for (final record in records) {
       if (record is! Map<String, dynamic>) {

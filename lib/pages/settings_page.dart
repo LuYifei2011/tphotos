@@ -35,6 +35,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _savedLanServer;
   String? _savedDdnsServer;
   String? _savedTnasOnlineServer;
+  int? _savedHttpsPort;
+  bool _enableTptConnection = true;
   final Uri _repoUrl = Uri.parse('https://github.com/LuYifei2011/tphotos');
 
   @override
@@ -43,6 +45,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _selectedSpace = widget.defaultSpace == 1 ? 1 : 2;
     _loadPackageInfo();
     _loadSavedServers();
+    _loadTptSetting();
     _loadConcurrentRequests();
   }
 
@@ -99,9 +102,38 @@ class _SettingsPageState extends State<SettingsPage> {
         _savedLanServer = prefs.getString('server');
         _savedDdnsServer = prefs.getString('tnas_ddns_url');
         _savedTnasOnlineServer = prefs.getString('tnas_online_url');
+        _savedHttpsPort = prefs.getInt('https_port');
       });
     } catch (_) {
       // Ignore errors if preferences are unavailable.
+    }
+  }
+
+  Future<void> _loadTptSetting() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _enableTptConnection = prefs.getBool('enable_tpt_connection') ?? false;
+      });
+    } catch (_) {
+      // Ignore errors if preferences are unavailable.
+    }
+  }
+
+  Future<void> _setTptSetting(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('enable_tpt_connection', value);
+      if (!mounted) return;
+      setState(() {
+        _enableTptConnection = value;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
     }
   }
 
@@ -237,6 +269,7 @@ class _SettingsPageState extends State<SettingsPage> {
         (_savedTnasOnlineServer != null && _savedTnasOnlineServer!.isNotEmpty)
         ? _savedTnasOnlineServer!
         : '未保存';
+    final httpsPort = _savedHttpsPort ?? 5443;
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -249,7 +282,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ExpansionTile(
             leading: const Icon(Icons.storage),
             title: const Text('服务地址'),
-            subtitle: const Text('本地 / DDNS / TNAS.online'),
+            subtitle: const Text('本地 / DDNS / TNAS.online / TPT'),
             initiallyExpanded: false,
             children: [
               ListTile(
@@ -266,6 +299,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: const Icon(Icons.cloud_outlined),
                 title: const Text('TNAS.online 地址'),
                 subtitle: Text(tnasOnlineLabel),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.usb),
+                title: const Text('TPT连接（需要登录TNAS客户端）'),
+                subtitle: Text('http://localhost:${httpsPort + 20000}'),
+                value: _enableTptConnection,
+                onChanged: _setTptSetting,
               ),
             ],
           ),

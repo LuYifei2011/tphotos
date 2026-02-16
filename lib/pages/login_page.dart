@@ -56,6 +56,12 @@ class _LoginPageState extends State<LoginPage> {
       prefs = await SharedPreferences.getInstance();
       final fallbackDdns = prefs.getString('tnas_ddns_url');
       final tnasOnlineServer = prefs.getString('tnas_online_url');
+        final enableTptConnection =
+          prefs.getBool('enable_tpt_connection') ?? false;
+        final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
+        final tptServer = enableTptConnection
+          ? 'https://localhost:${savedHttpsPort + 20000}'
+          : null;
 
       Future<Map<String, dynamic>> attempt(String baseUrl) async {
         final currentApi = TosAPI(baseUrl);
@@ -77,7 +83,75 @@ class _LoginPageState extends State<LoginPage> {
         res = await attempt(primaryServer);
       } on Object catch (primaryError) {
         if (_isConnectivityError(primaryError)) {
-          if (fallbackDdns != null &&
+          if (tptServer != null &&
+              tptServer.isNotEmpty &&
+              tptServer != primaryServer) {
+            try {
+              res = await attempt(tptServer);
+            } on Object catch (tptError) {
+              if (fallbackDdns != null &&
+                  fallbackDdns.isNotEmpty &&
+                  fallbackDdns != primaryServer &&
+                  fallbackDdns != tptServer) {
+                try {
+                  res = await attempt(fallbackDdns);
+                } on Object catch (ddnsError) {
+                  if (tnasOnlineServer != null &&
+                      tnasOnlineServer.isNotEmpty &&
+                      tnasOnlineServer != primaryServer &&
+                      tnasOnlineServer != fallbackDdns &&
+                      tnasOnlineServer != tptServer) {
+                    try {
+                      res = await attempt(tnasOnlineServer);
+                    } on Object catch (onlineError) {
+                      _setLoginError(
+                        primaryError: primaryError,
+                        tptServer: tptServer,
+                        tptError: tptError,
+                        ddnsServer: fallbackDdns,
+                        ddnsError: ddnsError,
+                        tnasOnlineServer: tnasOnlineServer,
+                        onlineError: onlineError,
+                      );
+                      return;
+                    }
+                  } else {
+                    _setLoginError(
+                      primaryError: primaryError,
+                      tptServer: tptServer,
+                      tptError: tptError,
+                      ddnsServer: fallbackDdns,
+                      ddnsError: ddnsError,
+                    );
+                    return;
+                  }
+                }
+              } else if (tnasOnlineServer != null &&
+                  tnasOnlineServer.isNotEmpty &&
+                  tnasOnlineServer != primaryServer &&
+                  tnasOnlineServer != tptServer) {
+                try {
+                  res = await attempt(tnasOnlineServer);
+                } on Object catch (onlineError) {
+                  _setLoginError(
+                    primaryError: primaryError,
+                    tptServer: tptServer,
+                    tptError: tptError,
+                    tnasOnlineServer: tnasOnlineServer,
+                    onlineError: onlineError,
+                  );
+                  return;
+                }
+              } else {
+                _setLoginError(
+                  primaryError: primaryError,
+                  tptServer: tptServer,
+                  tptError: tptError,
+                );
+                return;
+              }
+            }
+          } else if (fallbackDdns != null &&
               fallbackDdns.isNotEmpty &&
               fallbackDdns != primaryServer) {
             try {
@@ -142,6 +216,7 @@ class _LoginPageState extends State<LoginPage> {
         }
         await prefs.setBool('remember', _remember);
 
+        await _fetchAndStoreHttpsPort(api!, prefs);
         await _fetchAndStoreOnlineUrl(api!, prefs);
         await _fetchAndStoreDdnsUrl(api!, prefs);
 
@@ -187,12 +262,18 @@ class _LoginPageState extends State<LoginPage> {
 
   void _setLoginError({
     required Object primaryError,
+    String? tptServer,
+    Object? tptError,
     String? ddnsServer,
     Object? ddnsError,
     String? tnasOnlineServer,
     Object? onlineError,
   }) {
     final buffer = StringBuffer(_describeError(primaryError));
+    if (tptServer != null && tptError != null) {
+      buffer.write('\n使用 TPT 地址($tptServer) 时失败: ');
+      buffer.write(_describeError(tptError));
+    }
     if (ddnsServer != null && ddnsError != null) {
       buffer.write('\n使用 DDNS 地址($ddnsServer) 时失败: ');
       buffer.write(_describeError(ddnsError));
@@ -202,6 +283,18 @@ class _LoginPageState extends State<LoginPage> {
       buffer.write(_describeError(onlineError));
     }
     setState(() => _error = '登录失败: $buffer');
+  }
+
+  Future<void> _fetchAndStoreHttpsPort(
+    TosAPI api,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      final httpsPort = await api.ddns.httpsPort();
+      await prefs.setInt('https_port', httpsPort);
+    } catch (_) {
+      // Ignore failures when fetching https port; login already succeeded.
+    }
   }
 
   Future<void> _fetchAndStoreOnlineUrl(

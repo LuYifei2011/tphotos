@@ -91,6 +91,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     final remember = prefs.getBool('remember') ?? false;
     final ddnsServer = prefs.getString('tnas_ddns_url');
     final tnasOnlineServer = prefs.getString('tnas_online_url');
+    final enableTptConnection =
+      prefs.getBool('enable_tpt_connection') ?? false;
+    final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
+    final tptServer = enableTptConnection
+      ? 'http://localhost:${savedHttpsPort + 20000}'
+      : null;
 
     if (savedServer != null && savedServer.isNotEmpty) {
       TosAPI? api;
@@ -121,9 +127,33 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           primaryError != null && _isConnectivityError(primaryError);
 
       if (canUseFallback &&
+          tptServer != null &&
+          tptServer.isNotEmpty &&
+          tptServer != savedServer) {
+        _autoLoginStatus.value = '正在尝试 TPT 地址: $tptServer';
+        if (_cancelCompleter!.isCompleted) return null;
+
+        try {
+          final tptApi = await _autoLoginWithBase(
+            baseUrl: tptServer,
+            prefs: prefs,
+            username: savedUser,
+            password: savedPass,
+            remember: remember,
+          );
+          if (_cancelCompleter!.isCompleted) return null;
+          if (tptApi != null) {
+            _autoLoginStatus.value = '登录成功！';
+            return tptApi;
+          }
+        } catch (_) {}
+      }
+
+      if (canUseFallback &&
           ddnsServer != null &&
           ddnsServer.isNotEmpty &&
-          ddnsServer != savedServer) {
+          ddnsServer != savedServer &&
+          ddnsServer != tptServer) {
         _autoLoginStatus.value = '正在尝试 DDNS 地址: $ddnsServer';
         if (_cancelCompleter!.isCompleted) return null;
 
@@ -147,6 +177,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           tnasOnlineServer != null &&
           tnasOnlineServer.isNotEmpty &&
           tnasOnlineServer != savedServer &&
+          tnasOnlineServer != tptServer &&
           canUseFallback;
 
       if (shouldTryTnasOnlineFallback) {
@@ -394,6 +425,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
 
     if (state != null && state['code'] == true) {
+      await _refreshHttpsPort(api, prefs);
       await _refreshTnasOnlineUrl(api, prefs);
       await _refreshDdnsUrl(api, prefs);
       return api;
@@ -407,6 +439,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     try {
       final res = await api.auth.login(username, password, keepLogin: true);
       if (res['code'] == true) {
+        await _refreshHttpsPort(api, prefs);
         await _refreshTnasOnlineUrl(api, prefs);
         await _refreshDdnsUrl(api, prefs);
         return api;
@@ -437,6 +470,15 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       }
     } catch (_) {
       // 忽略在线地址刷新失败
+    }
+  }
+
+  Future<void> _refreshHttpsPort(TosAPI api, SharedPreferences prefs) async {
+    try {
+      final httpsPort = await api.ddns.httpsPort();
+      await prefs.setInt('https_port', httpsPort);
+    } catch (_) {
+      // 忽略 https 端口刷新失败
     }
   }
 
