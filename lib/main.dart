@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'api/tos_api.dart';
+import 'api/login_fallback.dart';
 import 'api/tos_client.dart';
 import 'pages/login_page.dart';
 import 'pages/photos_page.dart';
@@ -60,9 +61,7 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   Future<TosAPI?>? _initial;
   ThemeMode _themeMode = ThemeMode.system;
-  final ValueNotifier<String> _autoLoginStatus = ValueNotifier<String>(
-    '准备自动登录...',
-  );
+  final ValueNotifier<String> _autoLoginStatus = ValueNotifier<String>('准备自动登录...');
   Completer<bool>? _cancelCompleter;
 
   @override
@@ -91,113 +90,41 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     final remember = prefs.getBool('remember') ?? false;
     final ddnsServer = prefs.getString('tnas_ddns_url');
     final tnasOnlineServer = prefs.getString('tnas_online_url');
-    final enableTptConnection =
-      prefs.getBool('enable_tpt_connection') ?? false;
+    final enableTptConnection = prefs.getBool('enable_tpt_connection') ?? false;
     final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
-    final tptServer = enableTptConnection
-      ? 'http://localhost:${savedHttpsPort + 20000}'
-      : null;
+    final tptServer = enableTptConnection ? 'http://localhost:${savedHttpsPort + 20000}' : null;
 
     if (savedServer != null && savedServer.isNotEmpty) {
-      TosAPI? api;
-      Object? primaryError;
+      final endpoints = buildLoginEndpoints(
+        primaryServer: savedServer,
+        tptServer: tptServer,
+        ddnsServer: ddnsServer,
+        tnasOnlineServer: tnasOnlineServer,
+      );
 
-      _autoLoginStatus.value = '正在尝试连接: $savedServer';
-      if (_cancelCompleter!.isCompleted) return null;
-
-      try {
-        api = await _autoLoginWithBase(
-          baseUrl: savedServer,
-          prefs: prefs,
-          username: savedUser,
-          password: savedPass,
-          remember: remember,
-        );
-      } on Object catch (e) {
-        primaryError = e;
-      }
-
-      if (_cancelCompleter!.isCompleted) return null;
-      if (api != null) {
-        _autoLoginStatus.value = '登录成功！';
-        return api;
-      }
-
-      final canUseFallback =
-          primaryError != null && _isConnectivityError(primaryError);
-
-      if (canUseFallback &&
-          tptServer != null &&
-          tptServer.isNotEmpty &&
-          tptServer != savedServer) {
-        _autoLoginStatus.value = '正在尝试 TPT 地址: $tptServer';
+      for (final endpoint in endpoints) {
+        _autoLoginStatus.value = '正在尝试${endpoint.label}: ${endpoint.baseUrl}';
         if (_cancelCompleter!.isCompleted) return null;
 
         try {
-          final tptApi = await _autoLoginWithBase(
-            baseUrl: tptServer,
+          final api = await _autoLoginWithBase(
+            baseUrl: endpoint.baseUrl,
             prefs: prefs,
             username: savedUser,
             password: savedPass,
             remember: remember,
           );
           if (_cancelCompleter!.isCompleted) return null;
-          if (tptApi != null) {
+          if (api != null) {
             _autoLoginStatus.value = '登录成功！';
-            return tptApi;
+            return api;
           }
-        } catch (_) {}
-      }
-
-      if (canUseFallback &&
-          ddnsServer != null &&
-          ddnsServer.isNotEmpty &&
-          ddnsServer != savedServer &&
-          ddnsServer != tptServer) {
-        _autoLoginStatus.value = '正在尝试 DDNS 地址: $ddnsServer';
-        if (_cancelCompleter!.isCompleted) return null;
-
-        try {
-          final ddnsApi = await _autoLoginWithBase(
-            baseUrl: ddnsServer,
-            prefs: prefs,
-            username: savedUser,
-            password: savedPass,
-            remember: remember,
-          );
-          if (_cancelCompleter!.isCompleted) return null;
-          if (ddnsApi != null) {
-            _autoLoginStatus.value = '登录成功！';
-            return ddnsApi;
+          break;
+        } on Object catch (e) {
+          if (!_isConnectivityError(e)) {
+            break;
           }
-        } catch (_) {}
-      }
-
-      final shouldTryTnasOnlineFallback =
-          tnasOnlineServer != null &&
-          tnasOnlineServer.isNotEmpty &&
-          tnasOnlineServer != savedServer &&
-          tnasOnlineServer != tptServer &&
-          canUseFallback;
-
-      if (shouldTryTnasOnlineFallback) {
-        _autoLoginStatus.value = '正在尝试 TNAS.online 地址: $tnasOnlineServer';
-        if (_cancelCompleter!.isCompleted) return null;
-
-        try {
-          final fallbackApi = await _autoLoginWithBase(
-            baseUrl: tnasOnlineServer,
-            prefs: prefs,
-            username: savedUser,
-            password: savedPass,
-            remember: remember,
-          );
-          if (_cancelCompleter!.isCompleted) return null;
-          if (fallbackApi != null) {
-            _autoLoginStatus.value = '登录成功！';
-            return fallbackApi;
-          }
-        } catch (_) {}
+        }
       }
     }
     // 无服务器地址或登录失败，返回 null（进入登录页）
@@ -281,9 +208,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         target = platformBrightness;
         break;
     }
-    final iconBrightness = target == Brightness.dark
-        ? Brightness.light
-        : Brightness.dark;
+    final iconBrightness = target == Brightness.dark ? Brightness.light : Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarDividerColor: Colors.transparent,
@@ -311,14 +236,8 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           darkColorScheme = darkDynamic.harmonized();
         } else {
           // 无动态配色，回退到默认蓝色主题
-          lightColorScheme = ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.light,
-          );
-          darkColorScheme = ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.dark,
-          );
+          lightColorScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.light);
+          darkColorScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark);
         }
 
         // 全平台统一使用支持预测性返回的页面过渡动画
@@ -346,24 +265,14 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           ),
           themeMode: _themeMode,
           routes: {
-            '/login': (_) => LoginPage(
-              themeMode: _themeMode,
-              onToggleTheme: _toggleThemeMode,
-            ),
+            '/login': (_) => LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode),
             '/photos': (ctx) {
               final args = ModalRoute.of(ctx)!.settings.arguments;
               if (args is TosAPI) {
-                return PhotosPage(
-                  api: args,
-                  themeMode: _themeMode,
-                  onToggleTheme: _toggleThemeMode,
-                );
+                return PhotosPage(api: args, themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
               }
               // 回退到登录
-              return LoginPage(
-                themeMode: _themeMode,
-                onToggleTheme: _toggleThemeMode,
-              );
+              return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
             },
           },
           home: FutureBuilder<TosAPI?>(
@@ -379,16 +288,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
               }
               final api = snapshot.data;
               if (api != null) {
-                return PhotosPage(
-                  api: api,
-                  themeMode: _themeMode,
-                  onToggleTheme: _toggleThemeMode,
-                );
+                return PhotosPage(api: api, themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
               }
-              return LoginPage(
-                themeMode: _themeMode,
-                onToggleTheme: _toggleThemeMode,
-              );
+              return LoginPage(themeMode: _themeMode, onToggleTheme: _toggleThemeMode);
             },
           ),
         );
@@ -459,10 +361,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     return null;
   }
 
-  Future<void> _refreshTnasOnlineUrl(
-    TosAPI api,
-    SharedPreferences prefs,
-  ) async {
+  Future<void> _refreshTnasOnlineUrl(TosAPI api, SharedPreferences prefs) async {
     try {
       final url = await api.online.nodeUrl();
       if (url != null && url.isNotEmpty) {
@@ -501,12 +400,7 @@ class _AutoLoginScreen extends StatelessWidget {
   final ThemeMode? themeMode;
   final VoidCallback? onToggleTheme;
 
-  const _AutoLoginScreen({
-    required this.statusNotifier,
-    required this.onCancel,
-    this.themeMode,
-    this.onToggleTheme,
-  });
+  const _AutoLoginScreen({required this.statusNotifier, required this.onCancel, this.themeMode, this.onToggleTheme});
 
   @override
   Widget build(BuildContext context) {
@@ -533,11 +427,7 @@ class _AutoLoginScreen extends StatelessWidget {
               ValueListenableBuilder<String>(
                 valueListenable: statusNotifier,
                 builder: (context, status, _) {
-                  return Text(
-                    status,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                    textAlign: TextAlign.center,
-                  );
+                  return Text(status, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center);
                 },
               ),
               const SizedBox(height: 32),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/login_fallback.dart';
 import '../api/tos_api.dart';
 import '../api/tos_client.dart';
 
@@ -51,26 +52,27 @@ class _LoginPageState extends State<LoginPage> {
     final primaryServer = _serverCtrl.text.trim();
     SharedPreferences? prefs;
     TosAPI? api;
-    late Map<String, dynamic> res;
+    LoginEndpoint? successEndpoint;
+    Map<String, dynamic>? response;
     try {
       prefs = await SharedPreferences.getInstance();
       final fallbackDdns = prefs.getString('tnas_ddns_url');
       final tnasOnlineServer = prefs.getString('tnas_online_url');
-        final enableTptConnection =
-          prefs.getBool('enable_tpt_connection') ?? false;
-        final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
-        final tptServer = enableTptConnection
-          ? 'https://localhost:${savedHttpsPort + 20000}'
-          : null;
+      final enableTptConnection = prefs.getBool('enable_tpt_connection') ?? false;
+      final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
+      final tptServer = enableTptConnection ? 'https://localhost:${savedHttpsPort + 20000}' : null;
+      final endpoints = buildLoginEndpoints(
+        primaryServer: primaryServer,
+        tptServer: tptServer,
+        ddnsServer: fallbackDdns,
+        tnasOnlineServer: tnasOnlineServer,
+      );
+      final failures = <MapEntry<LoginEndpoint, Object>>[];
 
-      Future<Map<String, dynamic>> attempt(String baseUrl) async {
-        final currentApi = TosAPI(baseUrl);
+      Future<Map<String, dynamic>> attempt(LoginEndpoint endpoint) async {
+        final currentApi = TosAPI(endpoint.baseUrl);
         try {
-          final response = await currentApi.auth.login(
-            _userCtrl.text.trim(),
-            _passCtrl.text,
-            keepLogin: _remember,
-          );
+          final response = await currentApi.auth.login(_userCtrl.text.trim(), _passCtrl.text, keepLogin: _remember);
           api = currentApi;
           return response;
         } catch (e) {
@@ -79,135 +81,28 @@ class _LoginPageState extends State<LoginPage> {
         }
       }
 
-      try {
-        res = await attempt(primaryServer);
-      } on Object catch (primaryError) {
-        if (_isConnectivityError(primaryError)) {
-          if (tptServer != null &&
-              tptServer.isNotEmpty &&
-              tptServer != primaryServer) {
-            try {
-              res = await attempt(tptServer);
-            } on Object catch (tptError) {
-              if (fallbackDdns != null &&
-                  fallbackDdns.isNotEmpty &&
-                  fallbackDdns != primaryServer &&
-                  fallbackDdns != tptServer) {
-                try {
-                  res = await attempt(fallbackDdns);
-                } on Object catch (ddnsError) {
-                  if (tnasOnlineServer != null &&
-                      tnasOnlineServer.isNotEmpty &&
-                      tnasOnlineServer != primaryServer &&
-                      tnasOnlineServer != fallbackDdns &&
-                      tnasOnlineServer != tptServer) {
-                    try {
-                      res = await attempt(tnasOnlineServer);
-                    } on Object catch (onlineError) {
-                      _setLoginError(
-                        primaryError: primaryError,
-                        tptServer: tptServer,
-                        tptError: tptError,
-                        ddnsServer: fallbackDdns,
-                        ddnsError: ddnsError,
-                        tnasOnlineServer: tnasOnlineServer,
-                        onlineError: onlineError,
-                      );
-                      return;
-                    }
-                  } else {
-                    _setLoginError(
-                      primaryError: primaryError,
-                      tptServer: tptServer,
-                      tptError: tptError,
-                      ddnsServer: fallbackDdns,
-                      ddnsError: ddnsError,
-                    );
-                    return;
-                  }
-                }
-              } else if (tnasOnlineServer != null &&
-                  tnasOnlineServer.isNotEmpty &&
-                  tnasOnlineServer != primaryServer &&
-                  tnasOnlineServer != tptServer) {
-                try {
-                  res = await attempt(tnasOnlineServer);
-                } on Object catch (onlineError) {
-                  _setLoginError(
-                    primaryError: primaryError,
-                    tptServer: tptServer,
-                    tptError: tptError,
-                    tnasOnlineServer: tnasOnlineServer,
-                    onlineError: onlineError,
-                  );
-                  return;
-                }
-              } else {
-                _setLoginError(
-                  primaryError: primaryError,
-                  tptServer: tptServer,
-                  tptError: tptError,
-                );
-                return;
-              }
-            }
-          } else if (fallbackDdns != null &&
-              fallbackDdns.isNotEmpty &&
-              fallbackDdns != primaryServer) {
-            try {
-              res = await attempt(fallbackDdns);
-            } on Object catch (ddnsError) {
-              if (tnasOnlineServer != null &&
-                  tnasOnlineServer.isNotEmpty &&
-                  tnasOnlineServer != primaryServer &&
-                  tnasOnlineServer != fallbackDdns) {
-                try {
-                  res = await attempt(tnasOnlineServer);
-                } on Object catch (onlineError) {
-                  _setLoginError(
-                    primaryError: primaryError,
-                    ddnsServer: fallbackDdns,
-                    ddnsError: ddnsError,
-                    tnasOnlineServer: tnasOnlineServer,
-                    onlineError: onlineError,
-                  );
-                  return;
-                }
-              } else {
-                _setLoginError(
-                  primaryError: primaryError,
-                  ddnsServer: fallbackDdns,
-                  ddnsError: ddnsError,
-                );
-                return;
-              }
-            }
-          } else if (tnasOnlineServer != null &&
-              tnasOnlineServer.isNotEmpty &&
-              tnasOnlineServer != primaryServer) {
-            try {
-              res = await attempt(tnasOnlineServer);
-            } on Object catch (onlineError) {
-              _setLoginError(
-                primaryError: primaryError,
-                tnasOnlineServer: tnasOnlineServer,
-                onlineError: onlineError,
-              );
-              return;
-            }
-          } else {
-            _setLoginError(primaryError: primaryError);
-            return;
+      for (final endpoint in endpoints) {
+        try {
+          response = await attempt(endpoint);
+          successEndpoint = endpoint;
+          break;
+        } on Object catch (error) {
+          failures.add(MapEntry(endpoint, error));
+          if (!_isConnectivityError(error)) {
+            break;
           }
-        } else {
-          _setLoginError(primaryError: primaryError);
-          return;
         }
       }
 
-      final response = res;
-      if (response['code'] == true) {
-        await prefs.setString('server', primaryServer);
+      if (successEndpoint == null || response == null) {
+        _setLoginError(failures);
+        return;
+      }
+
+      final loginResponse = response;
+
+      if (loginResponse['code'] == true) {
+        await prefs.setString('server', successEndpoint.baseUrl);
         await prefs.setString('username', _userCtrl.text.trim());
         if (_remember) {
           await prefs.setString('password', _passCtrl.text);
@@ -224,7 +119,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.of(context).pushReplacementNamed('/photos', arguments: api);
       } else {
         api?.dispose();
-        setState(() => _error = response['msg']?.toString() ?? '登录失败');
+        setState(() => _error = loginResponse['msg']?.toString() ?? '登录失败');
       }
     } catch (e) {
       api?.dispose();
@@ -260,35 +155,22 @@ class _LoginPageState extends State<LoginPage> {
     return error.toString();
   }
 
-  void _setLoginError({
-    required Object primaryError,
-    String? tptServer,
-    Object? tptError,
-    String? ddnsServer,
-    Object? ddnsError,
-    String? tnasOnlineServer,
-    Object? onlineError,
-  }) {
-    final buffer = StringBuffer(_describeError(primaryError));
-    if (tptServer != null && tptError != null) {
-      buffer.write('\n使用 TPT 地址($tptServer) 时失败: ');
-      buffer.write(_describeError(tptError));
+  void _setLoginError(List<MapEntry<LoginEndpoint, Object>> failures) {
+    if (failures.isEmpty) {
+      setState(() => _error = '登录失败');
+      return;
     }
-    if (ddnsServer != null && ddnsError != null) {
-      buffer.write('\n使用 DDNS 地址($ddnsServer) 时失败: ');
-      buffer.write(_describeError(ddnsError));
-    }
-    if (tnasOnlineServer != null && onlineError != null) {
-      buffer.write('\n使用 TNAS.online 地址($tnasOnlineServer) 时失败: ');
-      buffer.write(_describeError(onlineError));
+
+    final first = failures.first;
+    final buffer = StringBuffer(_describeError(first.value));
+    for (final failure in failures.skip(1)) {
+      buffer.write('\n使用${failure.key.label}(${failure.key.baseUrl})时失败: ');
+      buffer.write(_describeError(failure.value));
     }
     setState(() => _error = '登录失败: $buffer');
   }
 
-  Future<void> _fetchAndStoreHttpsPort(
-    TosAPI api,
-    SharedPreferences prefs,
-  ) async {
+  Future<void> _fetchAndStoreHttpsPort(TosAPI api, SharedPreferences prefs) async {
     try {
       final httpsPort = await api.ddns.httpsPort();
       await prefs.setInt('https_port', httpsPort);
@@ -297,10 +179,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _fetchAndStoreOnlineUrl(
-    TosAPI api,
-    SharedPreferences prefs,
-  ) async {
+  Future<void> _fetchAndStoreOnlineUrl(TosAPI api, SharedPreferences prefs) async {
     try {
       final url = await api.online.nodeUrl();
       if (url != null && url.isNotEmpty) {
@@ -311,10 +190,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _fetchAndStoreDdnsUrl(
-    TosAPI api,
-    SharedPreferences prefs,
-  ) async {
+  Future<void> _fetchAndStoreDdnsUrl(TosAPI api, SharedPreferences prefs) async {
     try {
       final url = await api.ddns.ddnsUrl();
       if (url != null && url.isNotEmpty) {
@@ -351,18 +227,14 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   TextFormField(
                     controller: _serverCtrl,
-                    decoration: const InputDecoration(
-                      labelText: '服务器地址（含协议，如 http://192.168.2.2:8181）',
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? '请输入服务器地址' : null,
+                    decoration: const InputDecoration(labelText: '服务器地址（含协议，如 http://192.168.2.2:8181）'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? '请输入服务器地址' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _userCtrl,
                     decoration: const InputDecoration(labelText: '用户名'),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? '请输入用户名' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? '请输入用户名' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -370,13 +242,8 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: InputDecoration(
                       labelText: '密码',
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          _showPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                        onPressed: () =>
-                            setState(() => _showPassword = !_showPassword),
+                        icon: Icon(_showPassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _showPassword = !_showPassword),
                       ),
                     ),
                     obscureText: !_showPassword,
@@ -385,11 +252,7 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Checkbox(
-                        value: _remember,
-                        onChanged: (v) =>
-                            setState(() => _remember = v ?? false),
-                      ),
+                      Checkbox(value: _remember, onChanged: (v) => setState(() => _remember = v ?? false)),
                       const Text('记住我并自动登录'),
                     ],
                   ),
@@ -402,11 +265,7 @@ class _LoginPageState extends State<LoginPage> {
                     child: FilledButton(
                       onPressed: _loading ? null : _onLogin,
                       child: _loading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Text('登录'),
                     ),
                   ),
