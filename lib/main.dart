@@ -7,8 +7,10 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'api/tos_api.dart';
 import 'api/login_fallback.dart';
 import 'api/tos_client.dart';
+import 'data/scene_label_dictionary.dart';
 import 'pages/login_page.dart';
 import 'pages/photos_page.dart';
+import 'utils/scene_label_resolver.dart';
 import 'package:fvp/fvp.dart' as fvp;
 
 void main() {
@@ -70,9 +72,16 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _applySceneLabelDict();
     _initial = _decideInitialPage();
     _loadThemeMode();
     _applySystemUiOverlay(_themeMode);
+  }
+
+  void _applySceneLabelDict() {
+    if (kSceneLabelDict.isNotEmpty) {
+      SceneLabelResolver.instance.setDict(kSceneLabelDict);
+    }
   }
 
   void _cancelAutoLogin() {
