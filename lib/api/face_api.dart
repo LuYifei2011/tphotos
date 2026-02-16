@@ -29,10 +29,12 @@ class FaceAPI {
     return FaceIndexResponse.fromJson(response);
   }
 
-  /// 获取人物缩略图字节数据
+  /// 获取人物头像字节数据
   Future<List<int>> faceThumbnailBytes(String rawPath) async {
     final encodedPath = Uri.encodeComponent(rawPath);
-    final path = '/v2/proxy/TerraPhotos/Thumbnail/$encodedPath';
+    final csrfToken = Uri.encodeQueryComponent(_client.csrfToken ?? '');
+    final path =
+        '/v2/proxy/TerraPhotos/multimediaPlay?path=$encodedPath&X-Csrf-Token=$csrfToken';
     final bytes = await _client.getBytes(path);
     return bytes;
   }

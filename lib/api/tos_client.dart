@@ -19,6 +19,8 @@ class TosClient {
   final Map<String, String> _cookies = {};
   String? _csrfToken;
 
+  String? get csrfToken => _csrfToken;
+
   TosClient(this.baseUrl) : _client = http.Client();
 
   Future<Map<String, dynamic>> get(

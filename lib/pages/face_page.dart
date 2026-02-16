@@ -86,12 +86,21 @@ class _FacePageState extends State<FacePage> {
   void _preloadCovers() {
     for (final face in _faces.take(30)) {
       if (face.exhibition.isNotEmpty) {
-        _ensureCoverLoaded(face.exhibition.first.thumbnailPath);
+        _ensureCoverLoaded(_coverPathFor(face));
       }
     }
   }
 
+  String _coverPathFor(FaceIndexItem face) {
+    if (face.exhibition.isEmpty) {
+      return '';
+    }
+    final first = face.exhibition.first;
+    return first.thumbnailPath.isNotEmpty ? first.thumbnailPath : first.path;
+  }
+
   Future<void> _ensureCoverLoaded(String thumbnailPath) async {
+    if (thumbnailPath.isEmpty) return;
     final notifier = _thumbNotifierFor(thumbnailPath);
     if (notifier.value != null) return;
 
@@ -162,7 +171,7 @@ class _FacePageState extends State<FacePage> {
                 ? <ValueNotifier<Uint8List?>>[]
                 : [
                     (() {
-                      final path = face.exhibition.first.thumbnailPath;
+                      final path = _coverPathFor(face);
                       _ensureCoverLoaded(path);
                       return _thumbNotifierFor(path);
                     })(),
