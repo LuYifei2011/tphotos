@@ -10,32 +10,24 @@ class FacePhotosPage extends StatelessWidget {
   final int space;
   final FaceIndexItem face;
 
-  const FacePhotosPage({
-    super.key,
-    required this.api,
-    required this.space,
-    required this.face,
-  });
+  const FacePhotosPage({super.key, required this.api, required this.space, required this.face});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(face.name.isEmpty ? '未命名' : face.name),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              '${face.count} 张照片',
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              face.name.isEmpty ? '未命名' : face.name,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-          ),
+            Text(
+              '${face.count} 张照片',
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+            ),
+          ],
         ),
       ),
       body: TimelineView(
@@ -51,12 +43,7 @@ class FacePhotosPage extends StatelessWidget {
   }
 
   Future<List<TimelineItem>> _loadTimeline() async {
-    final res = await api.face.faceTimeline(
-      space: space,
-      faceId: face.indexId,
-      timelineType: 2,
-      order: 'desc',
-    );
+    final res = await api.face.faceTimeline(space: space, faceId: face.indexId, timelineType: 2, order: 'desc');
     return res.data;
   }
 
