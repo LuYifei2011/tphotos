@@ -162,7 +162,7 @@ class _FacePageState extends State<FacePage> {
             maxCrossAxisExtent: 150,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
+            childAspectRatio: 0.66,
           ),
           itemCount: _faces.length,
           itemBuilder: (context, index) {

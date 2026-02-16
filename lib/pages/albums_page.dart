@@ -157,7 +157,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
             crossAxisCount: 2,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
-            childAspectRatio: 0.85,
+            childAspectRatio: 0.72,
           ),
           itemCount: _albums.length,
           itemBuilder: (context, index) {

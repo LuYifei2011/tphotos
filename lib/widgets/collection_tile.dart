@@ -60,7 +60,7 @@ class CollectionTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 缩略图区域
-          Expanded(child: _buildThumbnailArea(context)),
+          AspectRatio(aspectRatio: 1, child: _buildThumbnailArea(context)),
 
           const SizedBox(height: 8),
 
