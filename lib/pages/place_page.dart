@@ -90,7 +90,10 @@ class _PlacePageState extends State<PlacePage> {
   }
 
   ValueNotifier<Uint8List?> _thumbNotifierFor(String path) {
-    return _thumbNotifiers.putIfAbsent(path, () => ValueNotifier<Uint8List?>(null));
+    return _thumbNotifiers.putIfAbsent(
+      path,
+      () => ValueNotifier<Uint8List?>(null),
+    );
   }
 
   String _coverPathFor(GeoItem place) {
@@ -120,11 +123,8 @@ class _PlacePageState extends State<PlacePage> {
   void _onTapPlace(GeoItem place) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => PlacePhotosPage(
-          api: widget.api,
-          space: widget.space,
-          place: place,
-        ),
+        builder: (context) =>
+            PlacePhotosPage(api: widget.api, space: widget.space, place: place),
       ),
     );
   }
@@ -159,7 +159,9 @@ class _PlacePageState extends State<PlacePage> {
       if (_places.isEmpty) {
         return _buildStatus(
           icon: Icons.place_outlined,
-          iconColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+          iconColor: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.3),
           message: '暂无地点数据',
         );
       }
