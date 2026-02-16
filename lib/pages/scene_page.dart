@@ -137,7 +137,7 @@ class _ScenePageState extends State<ScenePage> {
 
     return ValueListenableBuilder<int>(
       valueListenable: resolver.versionListenable,
-      builder: (context, _, __) {
+      builder: (context, _, _) {
         final content = () {
           if (_loading) {
             return const Center(child: CircularProgressIndicator());

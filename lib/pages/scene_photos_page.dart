@@ -24,7 +24,7 @@ class ScenePhotosPage extends StatelessWidget {
 
     return ValueListenableBuilder<int>(
       valueListenable: resolver.versionListenable,
-      builder: (context, _, __) {
+      builder: (context, _, _) {
         final title = resolver.translate(scene.label);
 
         return Scaffold(
