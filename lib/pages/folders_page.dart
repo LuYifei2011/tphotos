@@ -410,8 +410,8 @@ class _FoldersPageState extends State<FoldersPage> {
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 160,
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               childAspectRatio: 0.68,

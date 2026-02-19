@@ -84,9 +84,8 @@ class _FolderThumbnailWidgetState extends State<FolderThumbnailWidget> {
       content = _buildDefaultIcon(context);
     }
 
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
+    return AspectRatio(
+      aspectRatio: 1.0,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.borderRadius),
         child: content,
@@ -104,8 +103,8 @@ class _FolderThumbnailWidgetState extends State<FolderThumbnailWidget> {
         if (bytes != null) {
           return Image.memory(
             bytes,
-            width: widget.size,
-            height: widget.size,
+            width: double.infinity,
+            height: double.infinity,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               return _buildDefaultIcon(context);

@@ -153,8 +153,8 @@ class _AlbumsPageState extends State<AlbumsPage> {
         child: GridView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 200,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
             childAspectRatio: 0.72,
