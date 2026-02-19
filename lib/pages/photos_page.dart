@@ -1178,6 +1178,19 @@ class _PhotoViewerState extends State<PhotoViewer> {
                           image: provider,
                           fit: BoxFit.contain,
                           gaplessPlayback: true,
+                          frameBuilder: (
+                            context,
+                            child,
+                            frame,
+                            wasSynchronouslyLoaded,
+                          ) {
+                            // 已同步加载或首帧已就绪，直接显示原图
+                            if (wasSynchronouslyLoaded || frame != null) {
+                              return child;
+                            }
+                            // 字节已到达但解码尚未完成，继续显示缩略图防止空白
+                            return _buildThumbnailPlaceholder(p);
+                          },
                         );
                       },
                     ),
