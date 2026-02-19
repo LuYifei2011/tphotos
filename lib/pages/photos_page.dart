@@ -493,14 +493,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Future<void> _loadCurrent() async {
     final item = widget.videos[_index];
     if (kDebugMode)
-      debugPrint('[VideoPlayer] load index=$_index name=${item.name}');
+      debugPrint('[VideoPlayer] stream index=$_index name=${item.name}');
     _controller?.dispose();
     _controller = null;
+    _lastError = null;
     setState(() {});
     try {
-      final file = await _downloadToTemp(item);
       if (!mounted) return;
-      final c = VideoPlayerController.file(file);
+      final uri = widget.api.photos.videoStreamUri(item.path);
+      final headers = widget.api.photos.videoStreamHeaders();
+      final c = VideoPlayerController.networkUrl(
+        uri,
+        httpHeaders: headers,
+      );
       _controller = c;
       _initFuture = c.initialize().then((_) {
         c.play();
@@ -509,13 +514,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         if (mounted) setState(() {});
         if (kDebugMode)
           debugPrint(
-            '[VideoPlayer] init file ok dur=${c.value.duration} size=${c.value.size} src=${file.path}',
+            '[VideoPlayer] stream ok dur=${c.value.duration} size=${c.value.size} uri=$uri',
           );
+      }).catchError((e, st) {
+        _lastError = '初始化失败: $e\n$st';
+        if (mounted) setState(() {});
+        if (kDebugMode) debugPrint('[VideoPlayer][ERR] stream init: $e');
       });
+      if (mounted) setState(() {});
     } catch (e, st) {
       _lastError = '初始化失败: $e\n$st';
       if (mounted) setState(() {});
-      if (kDebugMode) debugPrint('[VideoPlayer][ERR] init failed: $e');
+      if (kDebugMode) debugPrint('[VideoPlayer][ERR] stream failed: $e');
     }
   }
 

@@ -21,6 +21,15 @@ class TosClient {
 
   String? get csrfToken => _csrfToken;
 
+  /// 返回视频流请求所需的认证请求头（Cookie + X-CSRF-Token）。
+  Map<String, String> get videoRequestHeaders {
+    final h = <String, String>{
+      'Cookie': _cookies.entries.map((e) => '${e.key}=${e.value}').join('; '),
+    };
+    if (_csrfToken != null) h['X-CSRF-Token'] = _csrfToken!;
+    return h;
+  }
+
   TosClient(this.baseUrl) : _client = http.Client();
 
   Future<Map<String, dynamic>> get(

@@ -25,6 +25,17 @@ class PhotosAPI {
     return bytes;
   }
 
+  /// 返回视频流式播放的 URI（可直接传给 VideoPlayerController.networkUrl）。
+  Uri videoStreamUri(String rawPath) {
+    final encodedPath = Uri.encodeComponent(rawPath);
+    return Uri.parse(
+      '${_client.baseUrl}/v2/proxy/TerraPhotos/multimediaPlay?path=$encodedPath',
+    );
+  }
+
+  /// 返回视频流请求所需的认证请求头。
+  Map<String, String> videoStreamHeaders() => _client.videoRequestHeaders;
+
   Future<TimelineResponse> timeline({
     int? space,
     int? fileType,
