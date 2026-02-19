@@ -8,8 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:saver_gallery/saver_gallery.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:video_player/video_player.dart';
-import 'package:video_player_control_panel/video_player_control_panel.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import '../api/tos_api.dart';
 import '../models/photo_list_models.dart';
 import '../models/timeline_models.dart';
@@ -405,10 +405,9 @@ class VideoPlayerPage extends StatefulWidget {
 
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
   late int _index;
-  // 为避免引入过多复杂逻辑：单实例播放器，切换时重新初始化
-  VideoPlayerController? _controller;
-  Future<void>? _initFuture;
-  // 已下载的临时文件缓存，避免重复写入
+  late final Player _player;
+  late final VideoController _controller;
+  // 已下载的临时文件缓存，用于保存功能
   final Map<String, Future<File>> _tempFileCache = {};
   String? _lastError;
   bool _saving = false; // 保存状态
@@ -439,12 +438,24 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   void initState() {
     super.initState();
     _index = widget.initialIndex.clamp(0, widget.videos.length - 1);
+    _player = Player();
+    _controller = VideoController(_player);
+    _player.stream.error.listen((error) {
+      if (kDebugMode) debugPrint('[VideoPlayer][ERR] $error');
+      if (mounted) setState(() => _lastError = error);
+    });
+    _player.stream.completed.listen((completed) {
+      if (!completed || !mounted) return;
+      if (_index < widget.videos.length - 1) {
+        _next();
+      }
+    });
     _loadCurrent();
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -494,38 +505,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final item = widget.videos[_index];
     if (kDebugMode)
       debugPrint('[VideoPlayer] stream index=$_index name=${item.name}');
-    _controller?.dispose();
-    _controller = null;
-    _lastError = null;
-    setState(() {});
+    final uri = widget.api.photos.videoStreamUri(item.path);
+    final headers = widget.api.photos.videoStreamHeaders();
+    if (mounted) setState(() => _lastError = null);
     try {
-      if (!mounted) return;
-      final uri = widget.api.photos.videoStreamUri(item.path);
-      final headers = widget.api.photos.videoStreamHeaders();
-      final c = VideoPlayerController.networkUrl(
-        uri,
-        httpHeaders: headers,
-      );
-      _controller = c;
-      _initFuture = c.initialize().then((_) {
-        c.play();
-        c.setLooping(true);
-        _lastError = null;
-        if (mounted) setState(() {});
-        if (kDebugMode)
-          debugPrint(
-            '[VideoPlayer] stream ok dur=${c.value.duration} size=${c.value.size} uri=$uri',
-          );
-      }).catchError((e, st) {
-        _lastError = '初始化失败: $e\n$st';
-        if (mounted) setState(() {});
-        if (kDebugMode) debugPrint('[VideoPlayer][ERR] stream init: $e');
-      });
-      if (mounted) setState(() {});
+      await _player.open(Media(uri.toString(), httpHeaders: headers));
+      await _player.play();
+      if (kDebugMode) debugPrint('[VideoPlayer] opened uri=$uri');
     } catch (e, st) {
-      _lastError = '初始化失败: $e\n$st';
-      if (mounted) setState(() {});
-      if (kDebugMode) debugPrint('[VideoPlayer][ERR] stream failed: $e');
+      if (kDebugMode) debugPrint('[VideoPlayer][ERR] open failed: $e\n$st');
+      if (mounted) setState(() => _lastError = '$e');
     }
   }
 
@@ -544,8 +533,104 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   @override
   Widget build(BuildContext context) {
     final item = widget.videos[_index];
-    final heroTag = 'photo_hero_${item.path}';
+    final isDesktop =
+        Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+
+    // 桌面平台自定义控制栏（prev/play/next/volume/position/spacer/fullscreen）
+    final desktopBottomBar = [
+      IconButton(
+        icon: const Icon(Icons.skip_previous, color: Colors.white),
+        onPressed: _index > 0 ? _prev : null,
+        disabledColor: Colors.white30,
+        tooltip: '上一个',
+      ),
+      const MaterialDesktopPlayOrPauseButton(),
+      IconButton(
+        icon: const Icon(Icons.skip_next, color: Colors.white),
+        onPressed: _index < widget.videos.length - 1 ? _next : null,
+        disabledColor: Colors.white30,
+        tooltip: '下一个',
+      ),
+      const MaterialDesktopVolumeButton(),
+      const MaterialDesktopPositionIndicator(),
+      const Spacer(),
+      const MaterialDesktopFullscreenButton(),
+    ];
+
+    // 移动平台控制栏
+    final mobileBottomBar = [
+      IconButton(
+        icon: const Icon(Icons.skip_previous),
+        onPressed: _index > 0 ? _prev : null,
+        color: Colors.white,
+        disabledColor: Colors.white30,
+        tooltip: '上一个',
+      ),
+      const MaterialPlayOrPauseButton(),
+      IconButton(
+        icon: const Icon(Icons.skip_next),
+        onPressed: _index < widget.videos.length - 1 ? _next : null,
+        color: Colors.white,
+        disabledColor: Colors.white30,
+        tooltip: '下一个',
+      ),
+      const MaterialPositionIndicator(),
+      const Spacer(),
+      const MaterialFullscreenButton(),
+    ];
+
+    Widget videoWidget;
+    if (isDesktop) {
+      videoWidget = MaterialDesktopVideoControlsTheme(
+        normal: MaterialDesktopVideoControlsThemeData(
+          bottomButtonBar: desktopBottomBar,
+          toggleFullscreenOnDoublePress: true,   // 双击全屏
+        ),
+        fullscreen: MaterialDesktopVideoControlsThemeData(
+          bottomButtonBar: desktopBottomBar,
+        ),
+        child: Video(
+          controller: _controller,
+          controls: MaterialDesktopVideoControls,
+          fill: Colors.black,
+        ),
+      );
+    } else {
+      videoWidget = MaterialVideoControlsTheme(
+        normal: MaterialVideoControlsThemeData(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+          seekBarContainerHeight: 36,
+          bottomButtonBar: mobileBottomBar,
+          // ================== 手势开关 ==================
+          seekGesture: true,                    // 水平滑动 seek
+          brightnessGesture: true,              // 左侧调节亮度
+          volumeGesture: true,                  // 右侧调节音量
+          seekOnDoubleTap: true,                // 双击快进/快退
+          speedUpOnLongPress: true,             // 长按倍速
+          speedUpFactor: 2.0,                   // 倍速倍数（可改 1.5 / 3.0 等）
+          // ================== 灵敏度调节 ==================
+          horizontalGestureSensitivity: 800,    // 数值越大越不敏感（推荐 600~1200）
+          verticalGestureSensitivity: 120,      // 垂直滑动灵敏度
+          // 可选：控制栏显示时是否仍响应手势（全屏推荐开启）
+          gesturesEnabledWhileControlsVisible: true,
+        ),
+        fullscreen: MaterialVideoControlsThemeData(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 32),
+          seekBarContainerHeight: 36,
+          bottomButtonBar: mobileBottomBar,
+          // 全屏时也保持手势
+          gesturesEnabledWhileControlsVisible: true,
+        ),
+        child: Video(
+          controller: _controller,
+          controls: MaterialVideoControls,
+          fill: Colors.black,
+        ),
+      );
+    }
+
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text('${item.name} (${_index + 1}/${widget.videos.length})'),
         actions: [
@@ -562,73 +647,55 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           ),
         ],
       ),
-      body: Center(
-        child: Hero(
-          tag: heroTag,
-          child: _controller == null
-              ? const ColoredBox(
-                  color: Colors.black,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : FutureBuilder<void>(
-                  future: _initFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const ColoredBox(
-                        color: Colors.black,
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    if (!_controller!.value.isInitialized) {
-                      return _buildVideoError();
-                    }
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final aspect = _controller!.value.aspectRatio == 0
-                            ? 16 / 9
-                            : _controller!.value.aspectRatio;
-                        return Center(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: constraints.maxWidth,
-                              maxHeight: constraints.maxHeight,
-                            ),
-                            child: AspectRatio(
-                              aspectRatio: aspect,
-                              child: JkVideoControlPanel(
-                                _controller!,
-                                showClosedCaptionButton: false,
-                                showFullscreenButton: true,
-                                showVolumeButton: true,
-                                bgColor: Colors.black,
-                                onPrevClicked: _index <= 0
-                                    ? null
-                                    : () {
-                                        _prev();
-                                      },
-                                onNextClicked:
-                                    _index >= widget.videos.length - 1
-                                    ? null
-                                    : () {
-                                        _next();
-                                      },
-                                onPlayEnded: () {
-                                  if (_index < widget.videos.length - 1) {
-                                    _next();
-                                  } else {
-                                    _controller!.seekTo(Duration.zero);
-                                    _controller!.pause();
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
+      body: Column(
+        children: [
+          Expanded(child: videoWidget),
+          if (_lastError != null)
+            ColoredBox(
+              color: Colors.red.shade900,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-        ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _lastError!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _loadCurrent,
+                      child: const Text(
+                        '重试',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _openExternalPlayer,
+                      child: const Text(
+                        '外部播放器',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -693,46 +760,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     }
   }
 
-  Widget _buildVideoError() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent, size: 56),
-          const SizedBox(height: 12),
-          const Text('视频初始化失败'),
-          const SizedBox(height: 8),
-          if (_lastError != null)
-            Expanded(
-              child: SingleChildScrollView(
-                child: Text(
-                  _lastError!,
-                  style: const TextStyle(fontSize: 12, color: Colors.redAccent),
-                ),
-              ),
-            ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            children: [
-              ElevatedButton.icon(
-                onPressed: _loadCurrent,
-                icon: const Icon(Icons.refresh),
-                label: const Text('重试'),
-              ),
-              ElevatedButton.icon(
-                onPressed: _openExternalPlayer,
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('外部播放器'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _openExternalPlayer() async {
     try {
       final item = widget.videos[_index];
@@ -753,7 +780,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 }
 
-// 已用 JkVideoControlPanel 替换旧的 _ControlsOverlay
+// 使用 media_kit Video 组件播放视频
 
 class PhotoViewer extends StatefulWidget {
   final List<PhotoItem> photos;

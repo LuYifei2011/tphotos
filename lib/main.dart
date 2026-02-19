@@ -11,12 +11,13 @@ import 'data/scene_label_dictionary.dart';
 import 'pages/login_page.dart';
 import 'pages/photos_page.dart';
 import 'utils/scene_label_resolver.dart';
-import 'package:fvp/fvp.dart' as fvp;
+import 'package:media_kit/media_kit.dart';
 
 void main() {
   runZonedGuarded(
     () {
       WidgetsFlutterBinding.ensureInitialized();
+      MediaKit.ensureInitialized();
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
@@ -26,18 +27,6 @@ void main() {
           systemStatusBarContrastEnforced: false,
         ),
       );
-      // 使用 fvp 替换/增强 video_player，在桌面优先启用
-      try {
-        fvp.registerWith(
-          options: {
-            'platforms': ['windows', 'macos', 'linux', 'android', 'ios'],
-            // 可按需添加解码器或低延迟设置
-            'video.decoders': ['D3D11', 'NVDEC', 'FFmpeg'],
-          },
-        );
-      } catch (e) {
-        debugPrint('fvp register failed: $e');
-      }
       FlutterError.onError = (details) {
         debugPrint('FlutterError: ${details.exceptionAsString()}');
         if (details.stack != null) {
