@@ -13,6 +13,7 @@ import 'pages/photos_page.dart';
 import 'utils/scene_label_resolver.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:chinese_font_library/chinese_font_library.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   runZonedGuarded(
@@ -275,6 +276,13 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             pageTransitionsTheme: pageTransitionsTheme,
           ).useSystemChineseFont(Brightness.dark),
           themeMode: _themeMode,
+          localizationsDelegates: const [
+            ...GlobalMaterialLocalizations.delegates,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('zh', ''),
+          ],
           routes: {
             '/login': (_) => LoginPage(
               themeMode: _themeMode,
