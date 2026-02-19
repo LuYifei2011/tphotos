@@ -12,6 +12,7 @@ import 'pages/login_page.dart';
 import 'pages/photos_page.dart';
 import 'utils/scene_label_resolver.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:chinese_font_library/chinese_font_library.dart';
 
 void main() {
   runZonedGuarded(
@@ -267,12 +268,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             useMaterial3: true,
             colorScheme: lightColorScheme,
             pageTransitionsTheme: pageTransitionsTheme,
-          ),
+          ).useSystemChineseFont(Brightness.light),
           darkTheme: ThemeData(
             useMaterial3: true,
             colorScheme: darkColorScheme,
             pageTransitionsTheme: pageTransitionsTheme,
-          ),
+          ).useSystemChineseFont(Brightness.dark),
           themeMode: _themeMode,
           routes: {
             '/login': (_) => LoginPage(
