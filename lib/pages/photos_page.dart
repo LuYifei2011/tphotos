@@ -584,7 +584,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       videoWidget = MaterialDesktopVideoControlsTheme(
         normal: MaterialDesktopVideoControlsThemeData(
           bottomButtonBar: desktopBottomBar,
-          toggleFullscreenOnDoublePress: true,   // 双击全屏
+          toggleFullscreenOnDoublePress: true, // 双击全屏
         ),
         fullscreen: MaterialDesktopVideoControlsThemeData(
           bottomButtonBar: desktopBottomBar,
@@ -602,15 +602,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           seekBarContainerHeight: 36,
           bottomButtonBar: mobileBottomBar,
           // ================== 手势开关 ==================
-          seekGesture: true,                    // 水平滑动 seek
-          brightnessGesture: true,              // 左侧调节亮度
-          volumeGesture: true,                  // 右侧调节音量
-          seekOnDoubleTap: true,                // 双击快进/快退
-          speedUpOnLongPress: true,             // 长按倍速
-          speedUpFactor: 2.0,                   // 倍速倍数（可改 1.5 / 3.0 等）
+          seekGesture: true, // 水平滑动 seek
+          brightnessGesture: true, // 左侧调节亮度
+          volumeGesture: true, // 右侧调节音量
+          seekOnDoubleTap: true, // 双击快进/快退
+          speedUpOnLongPress: true, // 长按倍速
+          speedUpFactor: 2.0, // 倍速倍数（可改 1.5 / 3.0 等）
           // ================== 灵敏度调节 ==================
-          horizontalGestureSensitivity: 800,    // 数值越大越不敏感（推荐 600~1200）
-          verticalGestureSensitivity: 120,      // 垂直滑动灵敏度
+          horizontalGestureSensitivity: 800, // 数值越大越不敏感（推荐 600~1200）
+          verticalGestureSensitivity: 120, // 垂直滑动灵敏度
           // 可选：控制栏显示时是否仍响应手势（全屏推荐开启）
           gesturesEnabledWhileControlsVisible: true,
         ),
@@ -1215,19 +1215,15 @@ class _PhotoViewerState extends State<PhotoViewer> {
                           image: provider,
                           fit: BoxFit.contain,
                           gaplessPlayback: true,
-                          frameBuilder: (
-                            context,
-                            child,
-                            frame,
-                            wasSynchronouslyLoaded,
-                          ) {
-                            // 已同步加载或首帧已就绪，直接显示原图
-                            if (wasSynchronouslyLoaded || frame != null) {
-                              return child;
-                            }
-                            // 字节已到达但解码尚未完成，继续显示缩略图防止空白
-                            return _buildThumbnailPlaceholder(p);
-                          },
+                          frameBuilder:
+                              (context, child, frame, wasSynchronouslyLoaded) {
+                                // 已同步加载或首帧已就绪，直接显示原图
+                                if (wasSynchronouslyLoaded || frame != null) {
+                                  return child;
+                                }
+                                // 字节已到达但解码尚未完成，继续显示缩略图防止空白
+                                return _buildThumbnailPlaceholder(p);
+                              },
                         );
                       },
                     ),
