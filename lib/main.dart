@@ -280,9 +280,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             ...GlobalMaterialLocalizations.delegates,
             GlobalWidgetsLocalizations.delegate,
           ],
-          supportedLocales: const [
-            Locale('zh', ''),
-          ],
+          supportedLocales: const [Locale('zh', '')],
           routes: {
             '/login': (_) => LoginPage(
               themeMode: _themeMode,
