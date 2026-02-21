@@ -1040,6 +1040,25 @@ class _PhotoViewerState extends State<PhotoViewer> {
     );
   }
 
+  Widget _buildNavButton(IconData icon, VoidCallback? onPressed) {
+    return AnimatedOpacity(
+      opacity: onPressed != null ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 200),
+      child: Material(
+        color: Colors.black45,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Icon(icon, color: Colors.white, size: 32),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = widget.photos[_index];
@@ -1065,7 +1084,10 @@ class _PhotoViewerState extends State<PhotoViewer> {
       ),
       body: ColoredBox(
         color: Colors.black,
-        child: FocusableActionDetector(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FocusableActionDetector(
           focusNode: _focusNode,
           autofocus: true,
           shortcuts: <ShortcutActivator, Intent>{
@@ -1249,7 +1271,35 @@ class _PhotoViewerState extends State<PhotoViewer> {
               },
             ), // PageView.builder
           ), // Listener
-        ),
+        ), // FocusableActionDetector
+            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+              Positioned(
+                left: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: _buildNavButton(
+                    Icons.chevron_left,
+                    _index > 0 ? () => _goTo(_index - 1) : null,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 8,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: _buildNavButton(
+                    Icons.chevron_right,
+                    _index < widget.photos.length - 1
+                        ? () => _goTo(_index + 1)
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ], // Stack children
+        ), // Stack
       ),
     );
   }
