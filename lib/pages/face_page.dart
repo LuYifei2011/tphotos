@@ -276,6 +276,7 @@ class _FacePageState extends State<FacePage> {
               shape: CollectionShape.circle,
               onTap: () => _onTapFace(face),
               onLongPress: () => _onLongPressFace(face),
+              onSecondaryTap: () => _onLongPressFace(face),
             );
           },
         ),

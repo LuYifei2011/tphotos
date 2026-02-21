@@ -36,6 +36,9 @@ class CollectionTile extends StatelessWidget {
   /// 长按回调
   final VoidCallback? onLongPress;
 
+  /// 右键（次级点击）回调
+  final VoidCallback? onSecondaryTap;
+
   const CollectionTile({
     super.key,
     required this.title,
@@ -46,6 +49,7 @@ class CollectionTile extends StatelessWidget {
     this.borderRadius = 12.0,
     this.onTap,
     this.onLongPress,
+    this.onSecondaryTap,
   });
 
   @override
@@ -53,6 +57,7 @@ class CollectionTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
+      onSecondaryTap: onSecondaryTap,
       borderRadius: shape == CollectionShape.circle
           ? BorderRadius.circular(999)
           : BorderRadius.circular(borderRadius),
