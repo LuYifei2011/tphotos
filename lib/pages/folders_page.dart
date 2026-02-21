@@ -451,8 +451,8 @@ class _FoldersPageState extends State<FoldersPage> {
           },
           thumbNotifiers: _thumbNotifiers,
           ensureThumbLoaded: (item) => _ensureThumbLoaded(item.thumbnailPath),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 160,
             mainAxisSpacing: 4,
             crossAxisSpacing: 4,
             childAspectRatio: 1.0,
