@@ -1088,190 +1088,204 @@ class _PhotoViewerState extends State<PhotoViewer> {
           fit: StackFit.expand,
           children: [
             FocusableActionDetector(
-          focusNode: _focusNode,
-          autofocus: true,
-          shortcuts: <ShortcutActivator, Intent>{
-            const SingleActivator(LogicalKeyboardKey.arrowRight): _nextIntent,
-            const SingleActivator(LogicalKeyboardKey.arrowLeft): _prevIntent,
-            const SingleActivator(LogicalKeyboardKey.escape): _escapeIntent,
-            const SingleActivator(LogicalKeyboardKey.keyS, control: true):
-                _saveIntent,
-            const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
-                _saveIntent,
-            const SingleActivator(LogicalKeyboardKey.delete): _deleteIntent,
-          },
-          actions: <Type, Action<Intent>>{
-            NextPhotoIntent: CallbackAction<NextPhotoIntent>(
-              onInvoke: (_) {
-                _goTo(_index + 1);
-                return null;
+              focusNode: _focusNode,
+              autofocus: true,
+              shortcuts: <ShortcutActivator, Intent>{
+                const SingleActivator(LogicalKeyboardKey.arrowRight):
+                    _nextIntent,
+                const SingleActivator(LogicalKeyboardKey.arrowLeft):
+                    _prevIntent,
+                const SingleActivator(LogicalKeyboardKey.escape): _escapeIntent,
+                const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+                    _saveIntent,
+                const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+                    _saveIntent,
+                const SingleActivator(LogicalKeyboardKey.delete): _deleteIntent,
               },
-            ),
-            PrevPhotoIntent: CallbackAction<PrevPhotoIntent>(
-              onInvoke: (_) {
-                _goTo(_index - 1);
-                return null;
+              actions: <Type, Action<Intent>>{
+                NextPhotoIntent: CallbackAction<NextPhotoIntent>(
+                  onInvoke: (_) {
+                    _goTo(_index + 1);
+                    return null;
+                  },
+                ),
+                PrevPhotoIntent: CallbackAction<PrevPhotoIntent>(
+                  onInvoke: (_) {
+                    _goTo(_index - 1);
+                    return null;
+                  },
+                ),
+                EscapeViewerIntent: CallbackAction<EscapeViewerIntent>(
+                  onInvoke: (_) {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                    return null;
+                  },
+                ),
+                SavePhotoIntent: CallbackAction<SavePhotoIntent>(
+                  onInvoke: (_) {
+                    _saveCurrent();
+                    return null;
+                  },
+                ),
+                DeletePhotoIntent: CallbackAction<DeletePhotoIntent>(
+                  onInvoke: (_) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('删除功能未实现：需要后端删除接口')),
+                    );
+                    return null;
+                  },
+                ),
               },
-            ),
-            EscapeViewerIntent: CallbackAction<EscapeViewerIntent>(
-              onInvoke: (_) {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-                return null;
-              },
-            ),
-            SavePhotoIntent: CallbackAction<SavePhotoIntent>(
-              onInvoke: (_) {
-                _saveCurrent();
-                return null;
-              },
-            ),
-            DeletePhotoIntent: CallbackAction<DeletePhotoIntent>(
-              onInvoke: (_) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('删除功能未实现：需要后端删除接口')),
-                );
-                return null;
-              },
-            ),
-          },
-          child: Listener(
-            onPointerDown: (_) {
-              _pointerCount++;
-              if (_pointerCount >= 2) setState(() {}); // 双指触摸时立即禁用 PageView
-            },
-            onPointerUp: (_) {
-              _pointerCount--;
-              if (_pointerCount < 2) setState(() {}); // 手指抬起后恢复
-            },
-            onPointerCancel: (_) {
-              _pointerCount--;
-              if (_pointerCount < 2) setState(() {});
-            },
-            child: PageView.builder(
-              controller: _controller,
-              physics: (_isZoomed || _pointerCount >= 2)
-                  ? const NeverScrollableScrollPhysics()
-                  : const PageScrollPhysics(),
-              itemCount: widget.photos.length,
-              onPageChanged: (i) {
-                setState(() {
-                  _index = i;
-                  final controller = _transformControllers[i];
-                  if (controller != null) {
-                    _isZoomed = controller.value.getMaxScaleOnAxis() > 1.01;
-                  } else {
-                    _isZoomed = false;
-                  }
-                });
-                _prefetchAround(i);
-              },
-              itemBuilder: (context, i) {
-                final p = widget.photos[i];
-                final heroTag = 'photo_hero_${p.path}';
-                final timestamp = DateTime.now().millisecondsSinceEpoch;
-                debugPrint(
-                  '[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}',
-                );
+              child: Listener(
+                onPointerDown: (_) {
+                  _pointerCount++;
+                  if (_pointerCount >= 2) setState(() {}); // 双指触摸时立即禁用 PageView
+                },
+                onPointerUp: (_) {
+                  _pointerCount--;
+                  if (_pointerCount < 2) setState(() {}); // 手指抬起后恢复
+                },
+                onPointerCancel: (_) {
+                  _pointerCount--;
+                  if (_pointerCount < 2) setState(() {});
+                },
+                child: PageView.builder(
+                  controller: _controller,
+                  physics: (_isZoomed || _pointerCount >= 2)
+                      ? const NeverScrollableScrollPhysics()
+                      : const PageScrollPhysics(),
+                  itemCount: widget.photos.length,
+                  onPageChanged: (i) {
+                    setState(() {
+                      _index = i;
+                      final controller = _transformControllers[i];
+                      if (controller != null) {
+                        _isZoomed = controller.value.getMaxScaleOnAxis() > 1.01;
+                      } else {
+                        _isZoomed = false;
+                      }
+                    });
+                    _prefetchAround(i);
+                  },
+                  itemBuilder: (context, i) {
+                    final p = widget.photos[i];
+                    final heroTag = 'photo_hero_${p.path}';
+                    final timestamp = DateTime.now().millisecondsSinceEpoch;
+                    debugPrint(
+                      '[PhotoViewer][$timestamp] itemBuilder called for index $i: ${p.path}',
+                    );
 
-                // 检查是否有缓存的 ImageProvider（已预解码）
-                final cachedProvider = _imageProviderCache[p.path];
-                if (cachedProvider != null) {
-                  return _buildInteractiveImage(
-                    i,
-                    Hero(
-                      tag: heroTag,
-                      child: Image(
-                        image: cachedProvider,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
+                    // 检查是否有缓存的 ImageProvider（已预解码）
+                    final cachedProvider = _imageProviderCache[p.path];
+                    if (cachedProvider != null) {
+                      return _buildInteractiveImage(
+                        i,
+                        Hero(
+                          tag: heroTag,
+                          child: Image(
+                            image: cachedProvider,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                          ),
+                        ),
+                      );
+                    }
+
+                    // 同步检查内存缓存，命中则创建 ImageProvider
+                    final cached = OriginalPhotoManager.instance.getIfPresent(
+                      p.path,
+                    );
+                    if (cached != null) {
+                      final provider = _getOrCreateImageProvider(
+                        p.path,
+                        cached,
+                      );
+                      return _buildInteractiveImage(
+                        i,
+                        Hero(
+                          tag: heroTag,
+                          child: Image(
+                            image: provider,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                          ),
+                        ),
+                      );
+                    }
+
+                    // 未命中内存缓存，使用 FutureBuilder 异步加载
+                    return _buildInteractiveImage(
+                      i,
+                      Hero(
+                        tag: heroTag,
+                        child: FutureBuilder<Uint8List>(
+                          future: _loadOriginal(p),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              // 原图尚未加载完成，使用缩略图占位
+                              return _buildThumbnailPlaceholder(p);
+                            }
+                            if (snapshot.hasError || snapshot.data == null) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.broken_image,
+                                      color: Colors.white,
+                                      size: 64,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      '加载失败',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    OutlinedButton(
+                                      onPressed: () => setState(() {}),
+                                      child: const Text('重试'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            final provider = _getOrCreateImageProvider(
+                              p.path,
+                              snapshot.data!,
+                            );
+                            return Image(
+                              image: provider,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                              frameBuilder:
+                                  (
+                                    context,
+                                    child,
+                                    frame,
+                                    wasSynchronouslyLoaded,
+                                  ) {
+                                    // 已同步加载或首帧已就绪，直接显示原图
+                                    if (wasSynchronouslyLoaded ||
+                                        frame != null) {
+                                      return child;
+                                    }
+                                    // 字节已到达但解码尚未完成，继续显示缩略图防止空白
+                                    return _buildThumbnailPlaceholder(p);
+                                  },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                }
-
-                // 同步检查内存缓存，命中则创建 ImageProvider
-                final cached = OriginalPhotoManager.instance.getIfPresent(
-                  p.path,
-                );
-                if (cached != null) {
-                  final provider = _getOrCreateImageProvider(p.path, cached);
-                  return _buildInteractiveImage(
-                    i,
-                    Hero(
-                      tag: heroTag,
-                      child: Image(
-                        image: provider,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
-                    ),
-                  );
-                }
-
-                // 未命中内存缓存，使用 FutureBuilder 异步加载
-                return _buildInteractiveImage(
-                  i,
-                  Hero(
-                    tag: heroTag,
-                    child: FutureBuilder<Uint8List>(
-                      future: _loadOriginal(p),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState != ConnectionState.done) {
-                          // 原图尚未加载完成，使用缩略图占位
-                          return _buildThumbnailPlaceholder(p);
-                        }
-                        if (snapshot.hasError || snapshot.data == null) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.broken_image,
-                                  color: Colors.white,
-                                  size: 64,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  '加载失败',
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                                const SizedBox(height: 8),
-                                OutlinedButton(
-                                  onPressed: () => setState(() {}),
-                                  child: const Text('重试'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        final provider = _getOrCreateImageProvider(
-                          p.path,
-                          snapshot.data!,
-                        );
-                        return Image(
-                          image: provider,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          frameBuilder:
-                              (context, child, frame, wasSynchronouslyLoaded) {
-                                // 已同步加载或首帧已就绪，直接显示原图
-                                if (wasSynchronouslyLoaded || frame != null) {
-                                  return child;
-                                }
-                                // 字节已到达但解码尚未完成，继续显示缩略图防止空白
-                                return _buildThumbnailPlaceholder(p);
-                              },
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
-            ), // PageView.builder
-          ), // Listener
-        ), // FocusableActionDetector
+                    );
+                  },
+                ), // PageView.builder
+              ), // Listener
+            ), // FocusableActionDetector
             if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
               Positioned(
                 left: 8,
