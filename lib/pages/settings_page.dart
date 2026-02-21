@@ -483,11 +483,16 @@ class _SettingsPageState extends State<SettingsPage> {
             onChanged: _setVideoDecodeSetting,
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 4.0,
+            ),
             child: Text(
               '提示：切换后下次打开视频时生效。若视频出现花屏或无法播放，请尝试关闭硬件解码。',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: .7),
+                color: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.color?.withValues(alpha: .7),
               ),
             ),
           ),

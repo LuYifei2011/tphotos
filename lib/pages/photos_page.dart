@@ -459,9 +459,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       final hwDecode = prefs.getBool('video_hardware_decode') ?? true;
       final hwdecValue = hwDecode ? 'auto' : 'no';
       if (kDebugMode) debugPrint('[VideoPlayer] hwdec=$hwdecValue');
-      await ((_player.platform) as NativePlayer).setProperty('hwdec', hwdecValue);
+      await ((_player.platform) as NativePlayer).setProperty(
+        'hwdec',
+        hwdecValue,
+      );
     } catch (e) {
-      if (kDebugMode) debugPrint('[VideoPlayer][WARN] setProperty hwdec failed: $e');
+      if (kDebugMode)
+        debugPrint('[VideoPlayer][WARN] setProperty hwdec failed: $e');
     }
     _loadCurrent();
   }
