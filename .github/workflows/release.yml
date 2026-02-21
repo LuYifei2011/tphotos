@@ -1,5 +1,5 @@
-name: Release Draft
-run-name: Release Draft ${{ github.ref_name }}
+name: Release
+run-name: Release ${{ github.ref_name }}
 
 on:
   push:
