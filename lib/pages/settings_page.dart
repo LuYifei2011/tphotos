@@ -30,6 +30,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isClearingOriginalCache = false;
   bool _isClearingThumbnailCache = false;
   int _concurrentRequests = 6; // 默认并发数
+  bool _videoHardwareDecode = true; // 默认启用硬件解码
   String? _appName;
   String? _appVersion;
   String? _savedLanServer;
@@ -47,6 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadSavedServers();
     _loadTptSetting();
     _loadConcurrentRequests();
+    _loadVideoDecodeSetting();
   }
 
   @override
@@ -166,6 +168,40 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('已保存并应用：最大并发请求数 $value'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+    }
+  }
+
+  Future<void> _loadVideoDecodeSetting() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _videoHardwareDecode = prefs.getBool('video_hardware_decode') ?? true;
+      });
+    } catch (_) {
+      // 使用默认值
+    }
+  }
+
+  Future<void> _setVideoDecodeSetting(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('video_hardware_decode', value);
+      if (!mounted) return;
+      setState(() {
+        _videoHardwareDecode = value;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? '已切换为硬件解码（下次播放视频生效）' : '已切换为软件解码（下次播放视频生效）'),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -433,6 +469,29 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          const Divider(),
+          const ListTile(title: Text('视频设置'), subtitle: Text('调整视频播放参数')),
+          SwitchListTile(
+            secondary: const Icon(Icons.memory),
+            title: const Text('硬件解码'),
+            subtitle: Text(
+              _videoHardwareDecode
+                  ? '已启用（使用 GPU 解码，降低 CPU 占用）'
+                  : '已禁用（使用 CPU 软件解码，兼容性更好）',
+            ),
+            value: _videoHardwareDecode,
+            onChanged: _setVideoDecodeSetting,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Text(
+              '提示：切换后下次打开视频时生效。若视频出现花屏或无法播放，请尝试关闭硬件解码。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: .7),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info_outline),
