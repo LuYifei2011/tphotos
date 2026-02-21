@@ -114,7 +114,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        _enableTptConnection = prefs.getBool('enable_tpt_connection') ?? false;
+        _enableTptConnection = prefs.getBool('enable_tpt_connection') ?? true;
       });
     } catch (_) {
       // Ignore errors if preferences are unavailable.

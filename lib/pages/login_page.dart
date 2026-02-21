@@ -59,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
       final fallbackDdns = prefs.getString('tnas_ddns_url');
       final tnasOnlineServer = prefs.getString('tnas_online_url');
       final enableTptConnection =
-          prefs.getBool('enable_tpt_connection') ?? false;
+          prefs.getBool('enable_tpt_connection') ?? true;
       final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
       final tptServer = enableTptConnection
           ? 'https://localhost:${savedHttpsPort + 20000}'

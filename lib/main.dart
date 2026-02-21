@@ -92,7 +92,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     final remember = prefs.getBool('remember') ?? false;
     final ddnsServer = prefs.getString('tnas_ddns_url');
     final tnasOnlineServer = prefs.getString('tnas_online_url');
-    final enableTptConnection = prefs.getBool('enable_tpt_connection') ?? false;
+    final enableTptConnection = prefs.getBool('enable_tpt_connection') ?? true;
     final savedHttpsPort = prefs.getInt('https_port') ?? 5443;
     final tptServer = enableTptConnection
         ? 'http://localhost:${savedHttpsPort + 20000}'
